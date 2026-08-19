@@ -1,0 +1,23 @@
+// REFERENCE ONLY - not copied verbatim by /std:init. Author the real
+// docs/architecture/likec4/model.c4 from the actual project being
+// initialized, following this shape:
+//   actor(s) -> system -> container(s) -> component(s) (optional depth)
+// One relationship per meaningfully distinct interaction; label with
+// what crosses the boundary (protocol, purpose), not just "uses".
+
+model {
+  user = actor 'User' {
+    description 'Whoever uses this system'
+  }
+
+  system = system '<Project Name>' {
+    description '<one-line description of what this system is>'
+
+    web = container 'Web App' {
+      technology '<framework>'
+      description '<what this container does>'
+    }
+  }
+
+  user -> web 'uses'
+}

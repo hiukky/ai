@@ -1,0 +1,14 @@
+{
+  "name": "std",
+  "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run /std:init in a new or existing project to apply it.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Romullo",
+    "email": "developermarsh@gmail.com",
+    "url": "https://github.com/hiukky"
+  },
+  "commands": [
+    "./commands/init.md",
+    "./commands/adr.md"
+  ]
+}

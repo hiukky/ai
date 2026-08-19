@@ -1,0 +1,12 @@
+// REFERENCE ONLY - not copied verbatim by /std:init. Author the real
+// docs/architecture/likec4/views.c4 alongside model.c4. Start with at
+// least a landscape view; add a container view (and a component view
+// for any container complex enough to have internal structure worth
+// diagramming) as the model grows.
+
+views {
+  view index {
+    title '<Project Name> - Landscape'
+    include *
+  }
+}
