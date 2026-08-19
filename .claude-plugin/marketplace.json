@@ -14,6 +14,16 @@
         "url": "https://github.com/hiukky"
       },
       "keywords": ["openspec", "adr", "architecture-decision-records", "likec4", "architecture", "standard"]
+    },
+    {
+      "name": "flow",
+      "source": "./plugins/flow",
+      "description": "Personal git/dev workflow conventions - starting with a Conventional Commits skill.",
+      "author": {
+        "name": "Romullo",
+        "url": "https://github.com/hiukky"
+      },
+      "keywords": ["git", "commit", "conventional-commits", "workflow"]
     }
   ]
 }

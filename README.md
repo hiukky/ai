@@ -41,11 +41,21 @@ architecture diagrams.
 
 See `plugins/std/`.
 
+### `flow`
+
+Personal git/dev workflow conventions - starting with a `commit` skill
+that writes every commit in [Conventional Commits](https://www.conventionalcommits.org/)
+format (`feat:`, `fix:`, `docs:`, ...), triggered automatically whenever
+a commit is requested, no explicit invocation needed.
+
+See `plugins/flow/`.
+
 ## Install
 
 ```
 /plugin marketplace add hiukky/ai
 /plugin install std@ai
+/plugin install flow@ai
 ```
 
 (dotfiles-managed machines: this repo is cloned/updated locally by that

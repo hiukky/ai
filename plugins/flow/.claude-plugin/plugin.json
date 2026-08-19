@@ -1,0 +1,10 @@
+{
+  "name": "flow",
+  "description": "Personal git/dev workflow conventions - starting with Conventional Commits.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Romullo",
+    "email": "developermarsh@gmail.com",
+    "url": "https://github.com/hiukky"
+  }
+}
