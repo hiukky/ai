@@ -1,13 +1,28 @@
 ---
 name: commit
-description: Create git commits using the Conventional Commits format. Use whenever the user asks to commit, save, or check in their changes - in any project, not just ones with their own commit-style docs already written down.
+description: Commit (and push) finished work using Conventional Commits, proactively when a unit of work is genuinely done - not just when the user asks to commit, save, or check in their changes. Use whenever you finish implementing something, fixing something, or completing a task, in any project.
 ---
 
 # Commit (Conventional Commits)
 
 Every commit made with this skill follows [Conventional Commits](https://www.conventionalcommits.org/): the type/scope prefix keeps history scannable and stays compatible with changelog/semver automation, even in repos that don't use that automation today.
 
-Only commit when explicitly asked - never proactively, regardless of what else this skill says.
+## When to commit - proactively, without being asked
+
+Commit (and push, see below) on your own initiative once a coherent unit of work is genuinely finished - don't wait for the user to say "commit this." A unit of work is finished when **all** of these hold:
+
+- It's a complete, coherent step - a requested feature is implemented, a bug is fixed, a task from a checklist is done - not a half-written function or a "let me also just quickly..." detour mid-task.
+- It builds/typechecks, and any fast, relevant tests pass. Don't commit code you haven't verified works.
+- The working tree doesn't mix this finished unit with unrelated in-progress changes (see splitting, below).
+
+Do **not** commit proactively when:
+- The user is mid-conversation about what to build and hasn't converged on an approach yet.
+- You're in the middle of a multi-step task and this is an intermediate, not-yet-working state.
+- The user has just told you, for this task or session, to hold off (that instruction overrides this skill until they say otherwise).
+
+When in doubt about whether something counts as "done," err toward committing - a commit is cheap and reversible (`git reset`/`--amend` before push, revert after); leaving finished work uncommitted is the actual failure mode this skill exists to prevent.
+
+This proactive default does not extend to force-pushing, rewriting other people's history, or anything else outside normal commit+push - those keep requiring explicit confirmation per the user's general git safety rules.
 
 ## Format
 
@@ -53,8 +68,8 @@ Only commit when explicitly asked - never proactively, regardless of what else t
    unrelated files or anything that looks like a secret/credential, stage
    explicitly by path instead.
 3. Pick the type (and scope, if it earns its keep) from the actual diff,
-   not from the words the user used to ask for it - the type describes
-   the change, not the request.
+   not from the words the user used to ask for it (if any) - the type
+   describes the change, not the request.
 4. If the diff spans genuinely unrelated concerns, prefer splitting into
    separate commits over one mixed-type commit - but don't force a split
    for naturally-related changes just to keep commits small.
@@ -70,6 +85,15 @@ Only commit when explicitly asked - never proactively, regardless of what else t
    ```
 6. After committing, `git status` to confirm a clean tree (or exactly the
    expected remainder).
+
+## Push
+
+Push right after committing, by default - don't leave finished, committed work stranded locally waiting for a separate request:
+
+- Plain `git push` (or `git push -u origin <branch>` if the branch has no upstream yet).
+- If the push is rejected because the remote has commits you don't have, `git pull --rebase` (or `--ff-only` if you expect no divergence) and retry - don't force-push to make a rejected push go through.
+- Force-push (`--force`/`--force-with-lease`), pushing to a shared/protected branch (e.g. `main` on a team repo where others are actively pushing), and anything that rewrites already-pushed history stay outside this proactive default - confirm with the user first, same as the amend-after-push case below.
+- If push fails for a reason that isn't "just rebase and retry" (auth, permissions, CI/branch-protection rejection), stop and surface it rather than working around it.
 
 ## Fixing a message after the fact
 

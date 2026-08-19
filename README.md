@@ -44,9 +44,11 @@ See `plugins/std/`.
 ### `flow`
 
 Personal git/dev workflow conventions - starting with a `commit` skill
-that writes every commit in [Conventional Commits](https://www.conventionalcommits.org/)
-format (`feat:`, `fix:`, `docs:`, ...), triggered automatically whenever
-a commit is requested, no explicit invocation needed.
+that commits (and pushes) finished work in [Conventional Commits](https://www.conventionalcommits.org/)
+format (`feat:`, `fix:`, `docs:`, ...) **proactively**, once a unit of
+work is genuinely done - not only when explicitly asked. Force-push and
+rewriting pushed history stay outside that default and still need
+confirmation.
 
 See `plugins/flow/`.
 
