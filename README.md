@@ -1,25 +1,26 @@
 <h1 align="center">🤖 ai</h1>
 
-<p align="center">Personal hub for AI-focused resources: agents, skills, MCPs, and Claude Code plugins.</p>
+<p align="center">Personal hub for AI-focused resources: agents, skills, MCPs, and UZE plugins.</p>
 
 <br>
 
 ## Structure
 
-This repo is a **Claude Code marketplace** (`.claude-plugin/marketplace.json`)
-that catalogs one or more plugins, each self-contained under `plugins/<name>/`:
+This repo is a **UZE marketplace** (`marketplace.json`, the same shape UZE's
+own official marketplace uses) that catalogs one or more plugins, each
+self-contained under `plugins/<name>/`:
 
 ```
-.claude-plugin/marketplace.json   Marketplace catalog
+marketplace.json   Marketplace catalog
 plugins/
   <name>/
-    .claude-plugin/plugin.json    Plugin manifest
-    agents/                       Custom subagents
-    skills/                       Skill packages
-    commands/                     Custom slash commands
-    hooks/                        Hook configurations
-    resources/                    Bundled files a plugin's commands/skills read at runtime
-    .mcp.json                     MCP server definitions
+    plugin.json     Plugin manifest (Agent Plugins 1.0)
+    agents/         Custom subagents
+    skills/         Skill packages
+    commands/       Custom slash commands
+    hooks/          Hook configurations
+    resources/      Bundled files a plugin's commands/skills read at runtime
+    .mcp.json       MCP server definitions
 ```
 
 Only what's actually in use exists at any given time; empty categories
@@ -55,11 +56,10 @@ See `plugins/flow/`.
 ## Install
 
 ```
-/plugin marketplace add hiukky/ai
-/plugin install std@ai
-/plugin install flow@ai
+uze add https://github.com/hiukky/ai#plugins/std
+uze add https://github.com/hiukky/ai#plugins/flow
 ```
 
 (dotfiles-managed machines: this repo is cloned/updated locally by that
-setup - the two commands above just enable it inside Claude Code once
-it's on disk.)
+setup - `uze setup` picks up installed plugins from there once it's on
+disk.)
