@@ -21,6 +21,7 @@ Only categories actually in use are created.
 Current plugins:
 - `std` — engineering standard: OpenSpec (`proposal`/`specs`/`design`/`tasks`) with optional ADR (`docs/adr/`, Nygard style) + LikeC4 (`docs/architecture/likec4/`, `model.c4`/`views.c4`/`specification.c4`). Entry points: `/std:init`, `/std:adr`. See `plugins/std/`.
 - `flow` — git workflow: Conventional Commits (`feat:`/`fix:`/`docs:`/`chore:`...) — commit+push proactively when a unit of work is done and verified, no force-push without confirmation. See `plugins/flow/skills/commit/SKILL.md`.
+- `coordination` — multi-agent coordination: `git-worktree-coordinator` skill gives multiple agents exclusive, verified ownership of Git worktrees (atomic claim registry + `verify`-before-write), built on top of [worktrunk](https://worktrunk.dev) (`wt`) for the actual worktree mechanics. Entry point: `scripts/worktree-coordinator` (`doctor`/`create`/`claim`/`verify`/`release`/`finish`/`remove`/`prune`). See `plugins/coordination/skills/git-worktree-coordinator/SKILL.md`.
 
 ## Build / Test / Lint
 No build, test, or lint commands at repo root — this repo is a marketplace catalog, not a runnable app. No `package.json` scripts or CI workflows to run. Validate marketplace/plugin shape with UZE tooling when needed (`uze list`, `uze context inspect`).

@@ -1,0 +1,1005 @@
+#!/bin/sh
+# worktree-coordinator: deterministic multi-agent ownership on top of Git
+# worktrees, using worktrunk (`wt`) for the worktree mechanics themselves.
+#
+# POSIX sh only (tested under dash). Requires: git (>=2.7), worktrunk/`wt`
+# (https://worktrunk.dev - `cargo install worktrunk` / `brew install
+# worktrunk`), and common coreutils (mkdir, rmdir, mv, sed, awk, cksum,
+# date, hostname). No Python, Node, jq, Docker, or harness-specific APIs.
+#
+# What worktrunk provides (worktree creation/removal/path templating/hooks/
+# merge safety) is not reimplemented here. What this script adds on top -
+# and what worktrunk itself has no concept of - is exclusive, atomic
+# per-agent ownership: a claim registry with a real mutex, and a `verify`
+# that proves which agent, if any, legitimately owns the worktree a process
+# is standing in. See references/coordination-protocol.md.
+#
+# Run with no arguments or --help for usage.
+set -eu
+
+PROG=worktree-coordinator
+STALE_LOCK_SECS=${WTC_STALE_LOCK_SECS:-30}
+LOCK_HELD=0
+WT_BIN=${WORKTREE_COORDINATOR_WT:-wt}
+
+# Keep git fully non-interactive and non-paging; never touch the network.
+GIT_PAGER=cat; export GIT_PAGER
+PAGER=cat; export PAGER
+GIT_TERMINAL_PROMPT=0; export GIT_TERMINAL_PROMPT
+
+git() {
+	command git --no-pager "$@"
+}
+
+# require_wt dies with install instructions if `wt` isn't on PATH; call it
+# before any command that shells out to worktrunk (create, remove).
+require_wt() {
+	command -v "$WT_BIN" >/dev/null 2>&1 || die "'$WT_BIN' (worktrunk) is required but not found on PATH.
+Install it: https://worktrunk.dev (e.g. 'cargo install worktrunk' or 'brew install worktrunk').
+Set WORKTREE_COORDINATOR_WT to point at a non-default binary name/path if needed."
+}
+
+# Narrow, single-purpose string-field extractor for worktrunk's own
+# --format=json output (create/remove), not a general JSON parser: it
+# assumes a flat "key": "value" pair with no escaped quotes in the value,
+# which holds for the branch/path/outcome strings worktrunk emits here.
+# Deliberately avoids a hard `jq` dependency for this one narrow need.
+json_string_field() {
+	printf '%s\n' "$1" | sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
+}
+
+# Literal control characters, built without relying on trailing-newline
+# stripping from command substitution (only trailing newlines are stripped,
+# so embedding the marker between two characters preserves the byte).
+NL=$(printf 'a\nz'); NL=${NL#a}; NL=${NL%z}
+TAB=$(printf 'a\tz'); TAB=${TAB#a}; TAB=${TAB%z}
+
+# ---------------------------------------------------------------- output --
+
+err() { printf 'error: %s\n' "$*" >&2; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+info() { printf '%s\n' "$*"; }
+die() { err "$*"; exit 1; }
+die_rc() { rc=$1; shift; err "$*"; exit "$rc"; }
+
+usage() {
+	cat <<'EOF'
+worktree-coordinator - coordinate Git worktrees across multiple agents
+
+Usage:
+  worktree-coordinator doctor
+  worktree-coordinator list [--porcelain]
+  worktree-coordinator create --task TASK --agent AGENT [--base REF]
+  worktree-coordinator claim  --agent AGENT --path PATH [--task TASK] [--branch BRANCH]
+  worktree-coordinator verify --agent AGENT [--path PATH]
+  worktree-coordinator release --agent AGENT [--path PATH]
+  worktree-coordinator finish --agent AGENT [--path PATH] [--report]
+  worktree-coordinator remove --agent AGENT [--path PATH] [--confirm-unmerged] [--keep-branch]
+  worktree-coordinator prune [--dry-run] [--apply] [--git-prune]
+  worktree-coordinator help [COMMAND]
+  worktree-coordinator --version
+
+'create' and 'remove' shell out to worktrunk ('wt' - https://worktrunk.dev)
+for the actual worktree mechanics; 'doctor' reports whether it's installed.
+
+Exit status is non-zero on any failure. Nothing is ever committed to the
+network and no destructive Git operation runs without an explicit flag.
+See references/coordination-protocol.md for the on-disk registry format
+and references/integration-strategies.md for how a coordinator should
+integrate finished work.
+EOF
+}
+
+# ------------------------------------------------------------- id checks --
+
+# AGENT/TASK identifiers: [A-Za-z0-9._-], non-empty, <=64 chars, cannot
+# start with '-' or '.', cannot contain '..'. This keeps them safe to use
+# directly as path components and as git ref components.
+validate_id() {
+	label=$1 v=$2
+	[ -n "$v" ] || die "$label must not be empty"
+	len=${#v}
+	[ "$len" -le 64 ] || die "$label must be 64 characters or fewer: $v"
+	case $v in
+		*[!A-Za-z0-9._-]*) die "$label contains characters outside [A-Za-z0-9._-]: $v" ;;
+	esac
+	case $v in
+		-*) die "$label must not start with '-': $v" ;;
+		.*) die "$label must not start with '.': $v" ;;
+	esac
+	case $v in
+		*..*) die "$label must not contain '..': $v" ;;
+	esac
+}
+
+has_bad_path_chars() {
+	case $1 in
+		*"$TAB"*) return 0 ;;
+		*"$NL"*) return 0 ;;
+	esac
+	return 1
+}
+
+# ------------------------------------------------------------- git/repo --
+
+# Resolves TOPLEVEL, GITDIR, COMMONDIR (all canonical, symlink-resolved)
+# for the repository containing the current working directory. Fails
+# clearly if not inside a working tree of a git repository.
+require_repo() {
+	tl_raw=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git repository (no working tree found from $(pwd))"
+	gd_raw=$(git rev-parse --git-dir 2>/dev/null) || die "cannot resolve --git-dir"
+	cd_raw=$(git rev-parse --git-common-dir 2>/dev/null) || die "cannot resolve --git-common-dir"
+
+	TOPLEVEL=$(cd "$tl_raw" && pwd -P) || die "cannot access repository toplevel: $tl_raw"
+	GITDIR=$(cd "$gd_raw" 2>/dev/null && pwd -P) || die "cannot access git dir: $gd_raw"
+	COMMONDIR=$(cd "$cd_raw" 2>/dev/null && pwd -P) || die "cannot access git common dir: $cd_raw"
+}
+
+# Canonicalizes an arbitrary filesystem path. The target need not exist,
+# but its parent directory must. Symlinks are resolved via `pwd -P`.
+canon_path() {
+	p=$1
+	has_bad_path_chars "$p" && die "path contains a tab or newline, which cannot be handled safely: $p"
+	if [ -d "$p" ]; then
+		(cd "$p" && pwd -P) || return 1
+		return 0
+	fi
+	pdir=$(dirname -- "$p")
+	pbase=$(basename -- "$p")
+	[ -d "$pdir" ] || return 1
+	pdir_abs=$(cd "$pdir" && pwd -P) || return 1
+	case $pdir_abs in
+		/) printf '/%s\n' "$pbase" ;;
+		*) printf '%s/%s\n' "$pdir_abs" "$pbase" ;;
+	esac
+}
+
+# First entry of `git worktree list --porcelain` is always the main
+# worktree (git's own guarantee), regardless of which worktree we run from.
+main_checkout_path() {
+	found=0
+	git -C "$TOPLEVEL" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
+		case $line in
+			"worktree "*)
+				printf '%s\n' "${line#worktree }"
+				exit 0
+				;;
+		esac
+	done
+}
+
+# Returns 0 (and prints branch, or nothing if detached) if $1 is a path
+# git currently tracks as a worktree.
+worktree_record_branch() {
+	target=$1
+	git -C "$TOPLEVEL" worktree list --porcelain 2>/dev/null | {
+		wt="" branch="" matched=0
+		while IFS= read -r line; do
+			case $line in
+				"worktree "*) wt=${line#worktree } ;;
+				"branch "*) branch=${line#branch }; branch=${branch#refs/heads/} ;;
+				"detached") branch="" ;;
+				"")
+					if [ "$wt" = "$target" ]; then
+						printf '%s\n' "$branch"
+						matched=1
+					fi
+					wt="" branch=""
+					;;
+			esac
+		done
+		if [ "$wt" = "$target" ] && [ "$matched" -eq 0 ]; then
+			printf '%s\n' "$branch"
+			matched=1
+		fi
+		[ "$matched" -eq 1 ]
+	}
+}
+
+worktree_is_registered_with_git() {
+	target=$1
+	git -C "$TOPLEVEL" worktree list --porcelain 2>/dev/null | while IFS= read -r line; do
+		case $line in
+			"worktree "*)
+				[ "${line#worktree }" = "$target" ] && { printf 'yes\n'; exit 0; }
+				;;
+		esac
+	done
+}
+
+git_worktree_lock_supports_reason() {
+	help_out=$(git worktree lock -h 2>&1) || true
+	printf '%s' "$help_out" | grep -q -- '--reason'
+}
+
+# ---------------------------------------------------------------- paths --
+
+path_hash() {
+	printf '%s' "$1" | cksum | awk '{print $1}'
+}
+
+registry_root() {
+	printf '%s/agent-worktrees' "$COMMONDIR"
+}
+
+# ----------------------------------------------------------- registry --
+
+REGISTRY=""
+
+ensure_registry() {
+	REGISTRY=$(registry_root)
+	umask 077
+	mkdir -p "$REGISTRY/claims/by-agent" "$REGISTRY/claims/by-path" "$REGISTRY/.tmp" 2>/dev/null || die "cannot create registry directory: $REGISTRY (check permissions on $COMMONDIR)"
+}
+
+now_epoch() { date +%s; }
+
+unlock_registry() {
+	trap - EXIT INT TERM HUP
+	if [ "$LOCK_HELD" = "1" ]; then
+		rm -f "$REGISTRY/.lock/owner" 2>/dev/null || true
+		rmdir "$REGISTRY/.lock" 2>/dev/null || true
+		LOCK_HELD=0
+	fi
+}
+
+lock_registry() {
+	ensure_registry
+	lockdir="$REGISTRY/.lock"
+	waited=0
+	while :; do
+		if mkdir "$lockdir" 2>/dev/null; then
+			{
+				printf 'pid=%s\n' "$$"
+				printf 'host=%s\n' "$(hostname 2>/dev/null || printf unknown)"
+				printf 'time=%s\n' "$(now_epoch)"
+				printf 'cmd=%s\n' "${SUBCMD:-unknown}"
+			} > "$lockdir/owner" 2>/dev/null || true
+			LOCK_HELD=1
+			trap 'unlock_registry' EXIT INT TERM HUP
+			return 0
+		fi
+
+		lt=0
+		[ -f "$lockdir/owner" ] && lt=$(sed -n 's/^time=//p' "$lockdir/owner" 2>/dev/null | tail -n1)
+		case $lt in *[!0-9]*|'') lt=0 ;; esac
+		age=$(( $(now_epoch) - lt ))
+
+		if [ "$age" -gt "$STALE_LOCK_SECS" ]; then
+			owner_info=$(cat "$lockdir/owner" 2>/dev/null || true)
+			die "registry lock looks stale (age ${age}s, limit ${STALE_LOCK_SECS}s): $lockdir
+$owner_info
+If you have confirmed no other coordinator process is active, recover with:
+  rmdir '$lockdir/owner' 2>/dev/null; rmdir '$lockdir'
+Then retry the command."
+		fi
+
+		if [ "$waited" -ge "$STALE_LOCK_SECS" ]; then
+			owner_info=$(cat "$lockdir/owner" 2>/dev/null || true)
+			die "registry lock is busy: $lockdir
+$owner_info
+Another process appears to be actively coordinating worktrees. Retry shortly."
+		fi
+
+		sleep 0.2 2>/dev/null || sleep 1
+		waited=$((waited + 1))
+	done
+}
+
+# Writes info (key=value lines, from stdin) atomically into $1/info.
+write_info_atomic() {
+	dir=$1
+	tmp="$dir/.info.$$"
+	cat > "$tmp"
+	mv -f "$tmp" "$dir/info"
+}
+
+get_field() {
+	sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n1
+}
+
+by_agent_dir() { printf '%s/claims/by-agent/%s' "$REGISTRY" "$1"; }
+by_path_dir() { printf '%s/claims/by-path/p_%s' "$REGISTRY" "$(path_hash "$1")"; }
+
+# Reads the claim (if any) for an agent. Sets CLAIM_* globals; returns 1 if
+# no claim exists.
+load_claim_by_agent() {
+	agent=$1
+	dir=$(by_agent_dir "$agent")
+	[ -f "$dir/info" ] || return 1
+	CLAIM_AGENT=$(get_field "$dir/info" agent)
+	CLAIM_TASK=$(get_field "$dir/info" task)
+	CLAIM_BRANCH=$(get_field "$dir/info" branch)
+	CLAIM_PATH=$(get_field "$dir/info" path)
+	CLAIM_BASE=$(get_field "$dir/info" base)
+	CLAIM_COMMON_DIR=$(get_field "$dir/info" common_dir)
+	CLAIM_CREATED=$(get_field "$dir/info" created)
+	CLAIM_LOCKED=$(get_field "$dir/info" locked)
+	return 0
+}
+
+load_claim_by_path() {
+	cpath=$1
+	dir=$(by_path_dir "$cpath")
+	[ -f "$dir/info" ] || return 1
+	CLAIM_AGENT=$(get_field "$dir/info" agent)
+	CLAIM_TASK=$(get_field "$dir/info" task)
+	CLAIM_BRANCH=$(get_field "$dir/info" branch)
+	CLAIM_PATH=$(get_field "$dir/info" path)
+	CLAIM_BASE=$(get_field "$dir/info" base)
+	CLAIM_COMMON_DIR=$(get_field "$dir/info" common_dir)
+	CLAIM_CREATED=$(get_field "$dir/info" created)
+	CLAIM_LOCKED=$(get_field "$dir/info" locked)
+	return 0
+}
+
+# Must be called while holding the registry lock. Enforces:
+#  - one active worktree per agent (re-claiming the same path is idempotent)
+#  - one owning agent per worktree path
+claim_write() {
+	agent=$1 task=$2 branch=$3 cpath=$4 base=$5 locked=$6
+
+	adir=$(by_agent_dir "$agent")
+	pdir=$(by_path_dir "$cpath")
+
+	if [ -f "$adir/info" ]; then
+		existing_path=$(get_field "$adir/info" path)
+		if [ "$existing_path" = "$cpath" ]; then
+			: # idempotent refresh of the same claim
+		else
+			err "agent '$agent' already holds an active worktree claim at: $existing_path
+Release it first (worktree-coordinator release --agent $agent) before claiming a different path."
+			return 1
+		fi
+	elif [ -f "$pdir/info" ]; then
+		other_agent=$(get_field "$pdir/info" agent)
+		err "path is already claimed by agent '$other_agent': $cpath"
+		return 1
+	fi
+
+	mkdir -p "$adir" "$pdir" 2>/dev/null || { err "cannot write registry entry"; return 1; }
+
+	info=$(
+		printf 'agent=%s\n' "$agent"
+		printf 'task=%s\n' "$task"
+		printf 'branch=%s\n' "$branch"
+		printf 'path=%s\n' "$cpath"
+		printf 'base=%s\n' "$base"
+		printf 'common_dir=%s\n' "$COMMONDIR"
+		printf 'created=%s\n' "$(now_epoch)"
+		printf 'pid=%s\n' "$$"
+		printf 'locked=%s\n' "$locked"
+	)
+	printf '%s\n' "$info" | write_info_atomic "$adir"
+	printf '%s\n' "$info" | write_info_atomic "$pdir"
+}
+
+# Must be called while holding the registry lock.
+claim_remove() {
+	agent=$1 cpath=$2
+	adir=$(by_agent_dir "$agent")
+	pdir=$(by_path_dir "$cpath")
+	rm -f "$adir/info" "$adir/.info."* 2>/dev/null || true
+	rmdir "$adir" 2>/dev/null || true
+	rm -f "$pdir/info" "$pdir/.info."* 2>/dev/null || true
+	rmdir "$pdir" 2>/dev/null || true
+}
+
+list_agents() {
+	[ -d "$REGISTRY/claims/by-agent" ] || return 0
+	for d in "$REGISTRY"/claims/by-agent/*/; do
+		[ -d "$d" ] || continue
+		[ -f "${d}info" ] || continue
+		basename "${d%/}"
+	done
+}
+
+# ------------------------------------------------------------ commands --
+
+cmd_doctor() {
+	echo "worktree-coordinator doctor"
+	echo "==========================="
+	gv=$(git --version 2>/dev/null || echo "not found")
+	echo "git: $gv"
+
+	if git worktree list >/dev/null 2>&1; then
+		echo "[ok]   git worktree subcommand available"
+	else
+		echo "[fail] git worktree subcommand not available"
+	fi
+
+	if git worktree list --porcelain >/dev/null 2>&1; then
+		echo "[ok]   git worktree list --porcelain supported"
+	else
+		echo "[fail] git worktree list --porcelain not supported (git too old); this tool cannot run safely"
+	fi
+
+	if git_worktree_lock_supports_reason; then
+		echo "[ok]   git worktree lock --reason supported"
+	else
+		echo "[warn] git worktree lock --reason not supported; claims will lock worktrees without a stored reason"
+	fi
+
+	if command -v "$WT_BIN" >/dev/null 2>&1; then
+		wtv=$("$WT_BIN" --version 2>/dev/null || echo "unknown version")
+		echo "[ok]   worktrunk found: $wtv ($(command -v "$WT_BIN"))"
+	else
+		echo "[fail] worktrunk ('$WT_BIN') not found on PATH - 'create' and 'remove' require it: https://worktrunk.dev"
+	fi
+
+	if [ -n "${GIT_DIR:-}" ] || [ -n "${GIT_WORK_TREE:-}" ]; then
+		echo "[warn] GIT_DIR/GIT_WORK_TREE is set in this shell; it can override repository discovery unexpectedly"
+	fi
+
+	if git rev-parse --show-toplevel >/dev/null 2>&1; then
+		require_repo
+		echo "toplevel:    $TOPLEVEL"
+		echo "git-dir:     $GITDIR"
+		echo "common-dir:  $COMMONDIR"
+		mc=$(main_checkout_path)
+		echo "main checkout: ${mc:-unknown}"
+
+		ensure_registry
+		if mkdir -p "$REGISTRY/.doctor-probe" 2>/dev/null && rmdir "$REGISTRY/.doctor-probe" 2>/dev/null; then
+			echo "[ok]   registry directory is writable: $REGISTRY"
+		else
+			echo "[fail] registry directory is not writable: $REGISTRY"
+		fi
+
+		n=0
+		for a in $(list_agents); do n=$((n + 1)); done
+		echo "managed claims: $n"
+
+		if [ -d "$REGISTRY/.lock" ]; then
+			lt=$(sed -n 's/^time=//p' "$REGISTRY/.lock/owner" 2>/dev/null | tail -n1)
+			case $lt in *[!0-9]*|'') lt=0 ;; esac
+			age=$(( $(now_epoch) - lt ))
+			echo "[warn] registry lock is currently held (age ${age}s): $REGISTRY/.lock"
+			cat "$REGISTRY/.lock/owner" 2>/dev/null | sed 's/^/         /'
+		fi
+	else
+		echo "not currently inside a git repository; repository-specific checks skipped"
+	fi
+
+	echo
+	echo "Isolation reminder: this tool can guarantee registry consistency and can"
+	echo "verify which worktree a process is actually standing in. It CANNOT make a"
+	echo "harness launch or cd a worker into the assigned worktree. Always run"
+	echo "'verify' from inside the worker's actual working directory before trusting"
+	echo "isolation, especially in harnesses that cannot set a per-agent cwd."
+	echo
+	echo "Hooks reminder: 'create' runs 'wt switch --create', which blocks on an"
+	echo "interactive approval prompt the first time a project defines unapproved"
+	echo "pre-start/post-start/etc. hooks (.config/wt.toml). That prompt needs a"
+	echo "TTY and will hang a non-interactive agent. Pre-approve with"
+	echo "'wt config approvals add' before delegating, or accept the (real) risk of"
+	echo "running unreviewed project commands automatically."
+}
+
+cmd_list() {
+	porcelain=0
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--porcelain) porcelain=1; shift ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "list: unknown argument: $1" ;;
+		esac
+	done
+	require_repo
+	ensure_registry
+
+	any=0
+	for agent in $(list_agents); do
+		any=1
+		load_claim_by_agent "$agent" || continue
+		status="ok"
+		if [ ! -d "$CLAIM_PATH" ]; then
+			status="dir-missing"
+		elif [ -z "$(worktree_is_registered_with_git "$CLAIM_PATH")" ]; then
+			status="not-in-git"
+		fi
+		pdir=$(by_path_dir "$CLAIM_PATH")
+		if [ ! -f "$pdir/info" ] || [ "$(get_field "$pdir/info" agent)" != "$agent" ]; then
+			status="inconsistent"
+		fi
+
+		if [ "$porcelain" -eq 1 ]; then
+			printf 'agent=%s\ntask=%s\nbranch=%s\npath=%s\nstatus=%s\ncreated=%s\n\n' \
+				"$CLAIM_AGENT" "$CLAIM_TASK" "$CLAIM_BRANCH" "$CLAIM_PATH" "$status" "$CLAIM_CREATED"
+		else
+			printf '%-16s %-20s %-8s %s\n' "$agent" "$CLAIM_TASK" "$status" "$CLAIM_PATH"
+		fi
+	done
+
+	if [ "$any" -eq 0 ] && [ "$porcelain" -eq 0 ]; then
+		echo "no managed worktree claims"
+	fi
+}
+
+cmd_create() {
+	task="" agent="" base="HEAD"
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--task) task=${2:?"--task requires a value"}; shift 2 ;;
+			--agent) agent=${2:?"--agent requires a value"}; shift 2 ;;
+			--base) base=${2:?"--base requires a value"}; shift 2 ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "create: unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$task" ] || die "create: --task is required"
+	[ -n "$agent" ] || die "create: --agent is required"
+
+	require_repo
+	require_wt
+	validate_id "--agent" "$agent"
+	validate_id "--task" "$task"
+
+	base_sha=$(git -C "$TOPLEVEL" rev-parse --verify "${base}^{commit}" 2>/dev/null) || die "create: --base does not resolve to a local commit: $base"
+
+	SUBCMD=create
+	lock_registry
+
+	adir=$(by_agent_dir "$agent")
+	if [ -f "$adir/info" ]; then
+		existing_path=$(get_field "$adir/info" path)
+		unlock_registry
+		die "create: agent '$agent' already holds an active worktree claim at: $existing_path
+Release it first (worktree-coordinator release --agent $agent) before creating another."
+	fi
+
+	# Only the branch name is ours to pick; the worktree's path is
+	# worktrunk's job (its configured [worktree-path] template).
+	branch=""
+	i=0
+	while [ "$i" -le 20 ]; do
+		if [ "$i" -eq 0 ]; then suffix=""; else suffix="-$i"; fi
+		cand_branch="agents/${agent}/${task}${suffix}"
+		if git -C "$TOPLEVEL" show-ref --verify --quiet "refs/heads/$cand_branch"; then
+			i=$((i + 1)); continue
+		fi
+		branch=$cand_branch
+		break
+	done
+	[ -n "$branch" ] || { unlock_registry; die "create: could not find a free branch name for agent '$agent' task '$task' after 20 attempts; choose a different task id"; }
+
+	# `wt switch --create` emits one JSON line on stdout and human-readable
+	# progress/approval-prompt text on stderr; the two streams must stay
+	# separate, so stderr goes to a scratch file rather than 2>&1 - and this
+	# runs the command exactly once, since re-running it on failure to
+	# "fetch stderr separately" could itself have a different side effect.
+	switch_errfile="$REGISTRY/.tmp/create-err.$$"
+	switch_rc=0
+	switch_json=$("$WT_BIN" -C "$TOPLEVEL" switch --create "$branch" --base "$base_sha" --no-cd --format=json 2>"$switch_errfile") || switch_rc=$?
+	switch_err=$(cat "$switch_errfile" 2>/dev/null || true)
+	rm -f "$switch_errfile" 2>/dev/null || true
+	if [ "$switch_rc" -ne 0 ]; then
+		unlock_registry
+		die "create: 'wt switch --create' failed:
+$switch_err"
+	fi
+
+	path=$(json_string_field "$switch_json" path)
+	[ -n "$path" ] || { "$WT_BIN" -C "$TOPLEVEL" remove -D "$branch" --format=json >/dev/null 2>&1 || true; unlock_registry; die "create: could not read a worktree path from wt's output: $switch_json"; }
+
+	# Test-only seam: lets the test suite exercise interruption between a
+	# successful worktree creation and claim registration (e.g. SIGINT,
+	# SIGKILL). No effect unless the test harness sets this variable.
+	if [ "${WTC_TEST_DELAY_AFTER_ADD:-0}" = "1" ]; then sleep 2; fi
+
+	cpath=$(canon_path "$path") || { "$WT_BIN" -C "$TOPLEVEL" remove -D "$branch" --format=json >/dev/null 2>&1 || true; unlock_registry; die "create: could not canonicalize new worktree path"; }
+
+	locked=no
+	if git_worktree_lock_supports_reason; then
+		if git -C "$TOPLEVEL" worktree lock "$path" --reason "agent=$agent task=$task" >/dev/null 2>&1; then locked=yes; fi
+	else
+		if git -C "$TOPLEVEL" worktree lock "$path" >/dev/null 2>&1; then locked=yes; fi
+	fi
+
+	if ! claim_write "$agent" "$task" "$branch" "$cpath" "$base_sha" "$locked"; then
+		[ "$locked" = "yes" ] && git -C "$TOPLEVEL" worktree unlock "$path" >/dev/null 2>&1
+		# -D is safe here specifically: this branch was created moments ago
+		# by this same invocation and holds zero commits beyond its base, so
+		# there is nothing "unmerged" to lose - it is entirely this
+		# operation's own not-yet-claimed artifact, not pre-existing data.
+		"$WT_BIN" -C "$TOPLEVEL" remove -D "$branch" --format=json >/dev/null 2>&1 || true
+		unlock_registry
+		die "create: could not register claim; rolled back the new worktree and branch (see error above)"
+	fi
+
+	unlock_registry
+
+	info "created worktree for agent=$agent task=$task"
+	info "  branch: $branch"
+	info "  path:   $cpath"
+	info "  base:   $base_sha"
+	info "  locked: $locked"
+}
+
+cmd_claim() {
+	agent="" path="" task="" branch_expect=""
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--agent) agent=${2:?"--agent requires a value"}; shift 2 ;;
+			--path) path=${2:?"--path requires a value"}; shift 2 ;;
+			--task) task=${2:?"--task requires a value"}; shift 2 ;;
+			--branch) branch_expect=${2:?"--branch requires a value"}; shift 2 ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "claim: unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$agent" ] || die "claim: --agent is required"
+	[ -n "$path" ] || die "claim: --path is required"
+
+	require_repo
+	validate_id "--agent" "$agent"
+
+	cpath=$(canon_path "$path") || die "claim: path does not exist and its parent cannot be resolved: $path"
+	[ -d "$cpath" ] || die "claim: path is not an existing directory: $cpath"
+
+	mc=$(main_checkout_path)
+	[ "$cpath" = "$mc" ] && die "claim: refusing to claim the main checkout as an agent worktree: $cpath"
+
+	actual_branch=$(worktree_record_branch "$cpath") || die "claim: path is not a worktree git currently knows about: $cpath
+Create it first with 'worktree-coordinator create'."
+	[ -n "$actual_branch" ] || die "claim: worktree at $cpath is in a detached HEAD state; claim requires a checked-out branch"
+
+	if [ -n "$branch_expect" ] && [ "$branch_expect" != "$actual_branch" ]; then
+		die "claim: worktree branch mismatch: expected '$branch_expect', git reports '$actual_branch'"
+	fi
+
+	if [ -z "$task" ]; then
+		task=${actual_branch##*/}
+		case $task in
+			*[!A-Za-z0-9._-]*|''|-*|.*) task=claimed ;;
+		esac
+	else
+		validate_id "--task" "$task"
+	fi
+
+	SUBCMD=claim
+	lock_registry
+	locked=no
+	git -C "$TOPLEVEL" worktree list --porcelain 2>/dev/null | grep -qxF "locked" && locked=maybe
+	if ! claim_write "$agent" "$task" "$actual_branch" "$cpath" "unknown" "$locked"; then
+		unlock_registry
+		exit 1
+	fi
+	unlock_registry
+
+	info "claimed worktree for agent=$agent"
+	info "  branch: $actual_branch"
+	info "  path:   $cpath"
+}
+
+# Checks a claimed worktree's live state against its registry record.
+# Expects CLAIM_* to already be loaded for $1 (agent). Checks $2 (an
+# already-canonicalized path) via `git -C`, so it works whether or not the
+# caller's cwd is inside that worktree. Sets ACTUAL_BRANCH. Dies on any
+# mismatch, with no side effects.
+check_claim_consistency() {
+	agent=$1 tpath=$2
+
+	[ "$CLAIM_COMMON_DIR" = "$COMMONDIR" ] || die "registered claim belongs to a different repository (git-common-dir mismatch).
+  claimed common-dir: $CLAIM_COMMON_DIR
+  current common-dir: $COMMONDIR"
+
+	ACTUAL_BRANCH=$(git -C "$tpath" symbolic-ref --quiet --short HEAD 2>/dev/null) || die "worktree is in detached HEAD state; expected branch '$CLAIM_BRANCH': $tpath"
+	[ "$ACTUAL_BRANCH" = "$CLAIM_BRANCH" ] || die "branch mismatch for $tpath.
+  expected: $CLAIM_BRANCH
+  current:  $ACTUAL_BRANCH"
+
+	[ -n "$(worktree_is_registered_with_git "$tpath")" ] || die "this path is not currently registered as a git worktree: $tpath (was it removed outside the coordinator?)"
+
+	mc=$(main_checkout_path)
+	[ "$tpath" != "$mc" ] || die "refusing to proceed: this is the MAIN checkout, not an agent worktree: $tpath"
+
+	pdir=$(by_path_dir "$tpath")
+	[ -f "$pdir/info" ] || die "internal inconsistency: no by-path registry entry for $tpath"
+	path_owner=$(get_field "$pdir/info" agent)
+	[ "$path_owner" = "$agent" ] || die "conflicting claim: this worktree is registered to agent '$path_owner', not '$agent'"
+}
+
+# Strict, cwd-bound safety gate for commands the WORKER runs from inside its
+# own worktree (verify, finish): the process's actual current directory must
+# be the assigned worktree. On success sets CLAIM_*, CUR_PATH, CUR_BRANCH.
+do_verify() {
+	agent=$1 path_arg=${2:-}
+	require_repo
+	validate_id "--agent" "$agent"
+
+	CUR_PATH=$TOPLEVEL
+	if [ -n "$path_arg" ]; then
+		arg_c=$(canon_path "$path_arg") || die "verify: --path does not resolve: $path_arg"
+		[ "$arg_c" = "$CUR_PATH" ] || die "verify: current directory ($CUR_PATH) does not match --path ($arg_c). cd into the assigned worktree first."
+	fi
+
+	ensure_registry
+	load_claim_by_agent "$agent" || die "verify: no active claim for agent '$agent'"
+
+	[ "$CLAIM_PATH" = "$CUR_PATH" ] || die "verify: agent '$agent' is claimed for a different worktree.
+  claimed:  $CLAIM_PATH
+  current:  $CUR_PATH"
+
+	check_claim_consistency "$agent" "$CUR_PATH"
+	CUR_BRANCH=$ACTUAL_BRANCH
+}
+
+# Looser, registry-bound resolution for commands the COORDINATOR typically
+# runs from elsewhere (release, remove): does not require cwd to be inside
+# the worktree. On success sets CLAIM_* and TARGET_PATH.
+resolve_claim() {
+	agent=$1 path_arg=${2:-}
+	require_repo
+	validate_id "--agent" "$agent"
+	ensure_registry
+	load_claim_by_agent "$agent" || die "no active claim for agent '$agent'"
+	if [ -n "$path_arg" ]; then
+		arg_c=$(canon_path "$path_arg") || die "--path does not resolve: $path_arg"
+		[ "$arg_c" = "$CLAIM_PATH" ] || die "--path ($arg_c) does not match the registered claim ($CLAIM_PATH)"
+	fi
+	TARGET_PATH=$CLAIM_PATH
+}
+
+cmd_verify() {
+	agent="" path=""
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--agent) agent=${2:?"--agent requires a value"}; shift 2 ;;
+			--path) path=${2:?"--path requires a value"}; shift 2 ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "verify: unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$agent" ] || die "verify: --agent is required"
+	do_verify "$agent" "$path"
+	info "verified: agent=$agent branch=$CUR_BRANCH path=$CUR_PATH"
+}
+
+cmd_release() {
+	agent="" path=""
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--agent) agent=${2:?"--agent requires a value"}; shift 2 ;;
+			--path) path=${2:?"--path requires a value"}; shift 2 ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "release: unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$agent" ] || die "release: --agent is required"
+	resolve_claim "$agent" "$path"
+
+	SUBCMD=release
+	lock_registry
+	[ "$CLAIM_LOCKED" = "yes" ] && git -C "$TOPLEVEL" worktree unlock "$CLAIM_PATH" >/dev/null 2>&1 || true
+	claim_remove "$agent" "$CLAIM_PATH"
+	unlock_registry
+
+	info "released claim for agent=$agent path=$CLAIM_PATH"
+	info "(the worktree and branch were left untouched)"
+}
+
+cmd_finish() {
+	agent="" path="" report=0
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--agent) agent=${2:?"--agent requires a value"}; shift 2 ;;
+			--path) path=${2:?"--path requires a value"}; shift 2 ;;
+			--report) report=1; shift ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "finish: unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$agent" ] || die "finish: --agent is required"
+	do_verify "$agent" "$path"
+
+	status=$(git -C "$CUR_PATH" status --porcelain)
+	head_line=$(git -C "$CUR_PATH" log -1 --format='%h %s' 2>/dev/null || echo "(no commits)")
+
+	ahead="unknown (base ref not resolvable locally)"
+	if git -C "$TOPLEVEL" rev-parse --verify --quiet "${CLAIM_BASE}^{commit}" >/dev/null 2>&1; then
+		ahead=$(git -C "$CUR_PATH" rev-list --count "${CLAIM_BASE}..HEAD" 2>/dev/null || echo unknown)
+	fi
+
+	echo "finish report"
+	echo "============="
+	echo "agent:  $agent"
+	echo "task:   $CLAIM_TASK"
+	echo "branch: $CLAIM_BRANCH"
+	echo "path:   $CUR_PATH"
+	echo "head:   $head_line"
+	echo "base:   $CLAIM_BASE"
+	echo "commits ahead of base: $ahead"
+
+	if [ -n "$status" ]; then
+		echo "status: DIRTY (uncommitted or untracked changes present)"
+		echo "$status" | sed 's/^/  /'
+	else
+		echo "status: CLEAN"
+	fi
+
+	if [ "$report" -eq 1 ]; then
+		echo "verdict: [report-only] no completeness check enforced"
+		exit 0
+	fi
+
+	if [ -n "$status" ]; then
+		echo "verdict: NOT READY - commit or stash changes, then run finish again"
+		exit 2
+	fi
+
+	echo "verdict: READY FOR INTEGRATION - worktree is clean; claim remains active until the coordinator integrates and releases/removes it"
+}
+
+is_dangerous_removal_target() {
+	tgt=$1
+	[ "$tgt" = "/" ] && return 0
+	[ -n "${HOME:-}" ] && [ "$tgt" = "$HOME" ] && return 0
+	[ "$tgt" = "$COMMONDIR" ] && return 0
+	[ "$tgt" = "$GITDIR" ] && return 0
+	mc=$(main_checkout_path)
+	[ "$tgt" = "$mc" ] && return 0
+	return 1
+}
+
+cmd_remove() {
+	agent="" path="" confirm_unmerged=0 keep_branch=0
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--agent) agent=${2:?"--agent requires a value"}; shift 2 ;;
+			--path) path=${2:?"--path requires a value"}; shift 2 ;;
+			--confirm-unmerged) confirm_unmerged=1; shift ;;
+			--keep-branch) keep_branch=1; shift ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "remove: unknown argument: $1" ;;
+		esac
+	done
+	[ -n "$agent" ] || die "remove: --agent is required"
+	require_wt
+	resolve_claim "$agent" "$path"
+	check_claim_consistency "$agent" "$TARGET_PATH"
+
+	tgt=$TARGET_PATH
+	is_dangerous_removal_target "$tgt" && die "remove: refusing to remove a protected path: $tgt"
+
+	pdir=$(by_path_dir "$tgt")
+	[ -f "$pdir/info" ] || die "remove: path is not in the managed registry: $tgt"
+	[ "$(get_field "$pdir/info" agent)" = "$agent" ] || die "remove: registry owner mismatch for $tgt"
+
+	status=$(git -C "$tgt" status --porcelain)
+	[ -z "$status" ] || die "remove: worktree is not clean; commit/stash first, or use 'release' to abandon the claim without deleting anything:
+$(printf '%s\n' "$status" | sed 's/^/  /')"
+
+	SUBCMD=remove
+	lock_registry
+
+	if [ "$CLAIM_LOCKED" = "yes" ]; then
+		git -C "$TOPLEVEL" worktree unlock "$tgt" >/dev/null 2>&1 || { unlock_registry; die "remove: could not unlock worktree administratively; refusing to force anything: $tgt"; }
+	fi
+
+	# Delegate the worktree removal and branch-safety decision to `wt
+	# remove`: it removes the worktree (already confirmed clean above; -f/
+	# --force is never passed), then deletes the branch only when its own
+	# six-condition integration check (same-commit, ancestor, no-added-
+	# changes, trees-match, merge-adds-nothing, patch-id-match - see
+	# references/integration-strategies.md) says it's safe - otherwise the
+	# branch is retained automatically, satisfying "integrated, preserved,
+	# or explicitly authorized" without us reimplementing that check.
+	# --confirm-unmerged maps to -D (force-delete even if unmerged);
+	# --keep-branch maps to --no-delete-branch and wins if both are given.
+	# Branched explicitly (rather than building an args string) so no step
+	# relies on word-splitting an assembled variable.
+	remove_errfile="$REGISTRY/.tmp/remove-err.$$"
+	remove_rc=0
+	if [ "$keep_branch" -eq 1 ]; then
+		remove_json=$("$WT_BIN" -C "$TOPLEVEL" remove --no-delete-branch --format=json --foreground "$CLAIM_BRANCH" 2>"$remove_errfile") || remove_rc=$?
+	elif [ "$confirm_unmerged" -eq 1 ]; then
+		remove_json=$("$WT_BIN" -C "$TOPLEVEL" remove -D --format=json --foreground "$CLAIM_BRANCH" 2>"$remove_errfile") || remove_rc=$?
+	else
+		remove_json=$("$WT_BIN" -C "$TOPLEVEL" remove --format=json --foreground "$CLAIM_BRANCH" 2>"$remove_errfile") || remove_rc=$?
+	fi
+	remove_err=$(cat "$remove_errfile" 2>/dev/null || true)
+	rm -f "$remove_errfile" 2>/dev/null || true
+	if [ "$remove_rc" -ne 0 ]; then
+		unlock_registry
+		die "remove: 'wt remove' failed (nothing was forced beyond what --confirm-unmerged/--keep-branch requested):
+$remove_err"
+	fi
+
+	branch_outcome=$(json_string_field "$remove_json" branch_outcome)
+
+	claim_remove "$agent" "$tgt"
+	unlock_registry
+
+	info "removed worktree for agent=$agent"
+	info "  path:   $tgt"
+	info "  branch: $CLAIM_BRANCH (outcome: ${branch_outcome:-unknown})"
+}
+
+cmd_prune() {
+	apply=0 git_prune=0
+	while [ $# -gt 0 ]; do
+		case $1 in
+			--dry-run) apply=0; shift ;;
+			--apply) apply=1; shift ;;
+			--git-prune) git_prune=1; shift ;;
+			-h|--help) usage; exit 0 ;;
+			*) die "prune: unknown argument: $1" ;;
+		esac
+	done
+	require_repo
+	ensure_registry
+
+	echo "prune $( [ "$apply" -eq 1 ] && echo "(applying)" || echo "(dry-run; pass --apply to act)" )"
+	echo "================================================================"
+
+	acted=0
+	for agent in $(list_agents); do
+		load_claim_by_agent "$agent" || continue
+		gone_dir=0
+		[ -d "$CLAIM_PATH" ] || gone_dir=1
+		known_to_git=1
+		[ -n "$(worktree_is_registered_with_git "$CLAIM_PATH")" ] || known_to_git=0
+
+		if [ "$gone_dir" -eq 1 ] && [ "$known_to_git" -eq 0 ]; then
+			echo "[stale-claim] agent=$agent task=$CLAIM_TASK path=$CLAIM_PATH"
+			echo "              directory is gone AND git no longer lists this worktree - safe to clear registry metadata"
+			if [ "$apply" -eq 1 ]; then
+				SUBCMD=prune
+				lock_registry
+				claim_remove "$agent" "$CLAIM_PATH"
+				unlock_registry
+				echo "              cleared."
+				acted=1
+			fi
+		elif [ "$gone_dir" -eq 1 ]; then
+			echo "[missing-dir] agent=$agent task=$CLAIM_TASK path=$CLAIM_PATH"
+			echo "              directory is absent but git still lists this worktree; NOT cleared automatically"
+			echo "              (directory absence alone is never treated as authorization to delete metadata)"
+		elif [ "$known_to_git" -eq 0 ]; then
+			echo "[not-in-git]  agent=$agent task=$CLAIM_TASK path=$CLAIM_PATH"
+			echo "              directory exists but git no longer tracks it as a worktree; investigate manually"
+		fi
+	done
+
+	if [ -d "$REGISTRY/.lock" ]; then
+		lt=$(sed -n 's/^time=//p' "$REGISTRY/.lock/owner" 2>/dev/null | tail -n1)
+		case $lt in *[!0-9]*|'') lt=0 ;; esac
+		age=$(( $(now_epoch) - lt ))
+		if [ "$age" -gt "$STALE_LOCK_SECS" ]; then
+			echo "[stale-lock]  $REGISTRY/.lock (age ${age}s)"
+			cat "$REGISTRY/.lock/owner" 2>/dev/null | sed 's/^/              /'
+			echo "              recovery: confirm no coordinator process is active, then:"
+			echo "                rm -f '$REGISTRY/.lock/owner'; rmdir '$REGISTRY/.lock'"
+		fi
+	fi
+
+	if [ "$git_prune" -eq 1 ] && [ "$apply" -eq 1 ]; then
+		echo "running: git worktree prune (removes git's own stale administrative entries only)"
+		git -C "$TOPLEVEL" worktree prune -v
+		acted=1
+	fi
+
+	[ "$acted" -eq 1 ] || echo "(no metadata changes made)"
+}
+
+# --------------------------------------------------------------- main --
+
+[ $# -ge 1 ] || { usage; exit 1; }
+
+cmd=$1; shift || true
+case $cmd in
+	doctor) cmd_doctor "$@" ;;
+	list) cmd_list "$@" ;;
+	create) cmd_create "$@" ;;
+	claim) cmd_claim "$@" ;;
+	verify) cmd_verify "$@" ;;
+	release) cmd_release "$@" ;;
+	finish) cmd_finish "$@" ;;
+	remove) cmd_remove "$@" ;;
+	prune) cmd_prune "$@" ;;
+	help) usage ;;
+	-h|--help) usage ;;
+	--version) printf '%s %s\n' "$PROG" "2.0.0" ;;
+	*) err "unknown command: $cmd"; usage >&2; exit 1 ;;
+esac

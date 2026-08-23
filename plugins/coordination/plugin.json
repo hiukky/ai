@@ -1,0 +1,5 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "coordination",
+  "description": "Personal multi-agent coordination toolkit - starting with a Git worktree coordinator that isolates parallel agent writers safely."
+}

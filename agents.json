@@ -16,6 +16,12 @@
       "source": "./plugins/flow",
       "description": "Personal git/dev workflow conventions - starting with a Conventional Commits skill.",
       "keywords": ["git", "commit", "conventional-commits", "workflow"]
+    },
+    {
+      "name": "coordination",
+      "source": "./plugins/coordination",
+      "description": "Personal multi-agent coordination toolkit - starting with a Git worktree coordinator that isolates parallel agent writers safely.",
+      "keywords": ["git", "worktree", "multi-agent", "parallel-agents", "coordination", "isolation"]
     }
   ]
 }
