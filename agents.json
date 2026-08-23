@@ -12,9 +12,9 @@
       "keywords": ["openspec", "adr", "architecture-decision-records", "likec4", "architecture", "standard"]
     },
     {
-      "name": "flow",
-      "source": "./plugins/flow",
-      "description": "Personal git/dev workflow conventions - starting with a Conventional Commits skill.",
+      "name": "git",
+      "source": "./plugins/git",
+      "description": "Personal git workflow conventions - starting with a Conventional Commits skill.",
       "keywords": ["git", "commit", "conventional-commits", "workflow"]
     },
     {

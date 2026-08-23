@@ -6,25 +6,27 @@
 
 ## Structure
 
-This repo is a **UZE marketplace** (`marketplace.json`, the same shape UZE's
+This repo is a **UZE marketplace** (`agents.json`, the same shape UZE's
 own official marketplace uses) that catalogs one or more plugins, each
 self-contained under `plugins/<name>/`:
 
 ```
-marketplace.json   Marketplace catalog
+agents.json   Marketplace catalog
 plugins/
   <name>/
     plugin.json     Plugin manifest (Agent Plugins 1.0)
     agents/         Custom subagents
-    skills/         Skill packages
-    commands/       Custom slash commands
+    skills/         Skill packages - agent-discoverable capabilities
+    commands/       Slash commands - thin, human-invoked wrappers around a skill
     hooks/          Hook configurations
     resources/      Bundled files a plugin's commands/skills read at runtime
     .mcp.json       MCP server definitions
 ```
 
 Only what's actually in use exists at any given time; empty categories
-above are simply not created for a given plugin until needed.
+above are simply not created for a given plugin until needed. Plugins
+are grouped by domain, not by how a capability is invoked - a `commands/`
+entry doesn't reimplement its skill, it just points the harness at it.
 
 ## Plugins
 
@@ -40,24 +42,50 @@ architecture diagrams.
 /std:adr    Record one ADR ad hoc, outside an OpenSpec change
 ```
 
+The `adr` skill behind `/std:adr` also triggers proactively - when a
+decision made during other work clears the ADR bar, not only when
+explicitly asked.
+
 See `plugins/std/`.
 
-### `flow`
+### `git`
 
-Personal git/dev workflow conventions - starting with a `commit` skill
+Personal git workflow conventions - starting with a `commit` skill
 that commits (and pushes) finished work in [Conventional Commits](https://www.conventionalcommits.org/)
 format (`feat:`, `fix:`, `docs:`, ...) **proactively**, once a unit of
 work is genuinely done - not only when explicitly asked. Force-push and
 rewriting pushed history stay outside that default and still need
 confirmation.
 
-See `plugins/flow/`.
+```
+/git:commit   Commit (and push) the current changes
+```
+
+See `plugins/git/`.
+
+### `coordination`
+
+Multi-agent coordination on top of Git worktrees: the
+`git-worktree-coordinator` skill gives multiple agents exclusive,
+verified ownership of a worktree - an atomic claim registry plus a
+`verify` check that proves which agent, if any, actually owns the
+worktree a process is standing in before it edits anything. Delegates
+worktree mechanics (creation, path templating, hooks, safe branch
+cleanup) to [worktrunk](https://worktrunk.dev) (`wt`) rather than
+reimplementing them.
+
+```
+/coordination:worktree   Create/verify/list/finish/remove a worktree
+```
+
+See `plugins/coordination/`.
 
 ## Install
 
 ```
 uze add https://github.com/hiukky/ai#plugins/std
-uze add https://github.com/hiukky/ai#plugins/flow
+uze add https://github.com/hiukky/ai#plugins/git
+uze add https://github.com/hiukky/ai#plugins/coordination
 ```
 
 (dotfiles-managed machines: this repo is cloned/updated locally by that
