@@ -1,4 +1,4 @@
-// REFERENCE ONLY - not copied verbatim by /std:init. Author the real
+// REFERENCE ONLY - not copied verbatim by /openspec:init. Author the real
 // docs/architecture/likec4/views.c4 alongside model.c4. Start with at
 // least a landscape view; add a container view (and a component view
 // for any container complex enough to have internal structure worth

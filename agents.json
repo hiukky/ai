@@ -6,9 +6,9 @@
   },
   "plugins": [
     {
-      "name": "std",
-      "source": "./plugins/std",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable decisions, plus LikeC4 for living architecture diagrams. /std:init wires a project (new or existing) to follow it.",
+      "name": "openspec",
+      "source": "./plugins/openspec",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable decisions, plus LikeC4 for living architecture diagrams. /openspec:init wires a project (new or existing) to follow it.",
       "keywords": ["openspec", "adr", "architecture-decision-records", "likec4", "architecture", "standard"]
     },
     {

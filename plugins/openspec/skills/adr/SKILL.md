@@ -1,6 +1,6 @@
 ---
 name: adr
-description: Record an Architecture Decision Record (ADR) under docs/adr/ - proactively, when a decision made during other work clears the bar (a new external dependency, a technology/pattern choice with long-term consequences, a boundary expensive to move later), not only when explicitly asked via /std:adr. Also use to backfill a past decision that predates this project's docs/adr/ convention. Requires the project to have already run /std:init (docs/adr/ must exist).
+description: Record an Architecture Decision Record (ADR) under docs/adr/ - proactively, when a decision made during other work clears the bar (a new external dependency, a technology/pattern choice with long-term consequences, a boundary expensive to move later), not only when explicitly asked via /openspec:adr. Also use to backfill a past decision that predates this project's docs/adr/ convention. Requires the project to have already run /openspec:init (docs/adr/ must exist).
 ---
 
 # ADR (Architecture Decision Record)
@@ -19,13 +19,13 @@ with long-term consequences, a boundary expensive to move later. If a
 decision doesn't clear that bar, don't create a file - say so, and
 suggest it belongs in a regular commit message or `design.md` instead.
 
-If invoked explicitly (e.g. via `/std:adr`), the argument (if any) is a
+If invoked explicitly (e.g. via `/openspec:adr`), the argument (if any) is a
 short description of the decision to record; if empty, ask the user
 what decision to record.
 
 ## Steps
 
-1. If `docs/adr/` doesn't exist yet, this project hasn't run `/std:init`
+1. If `docs/adr/` doesn't exist yet, this project hasn't run `/openspec:init`
    - tell the user and stop (don't half-scaffold it here).
 
 2. Confirm the decision actually clears the bar above before writing

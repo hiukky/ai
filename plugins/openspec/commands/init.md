@@ -2,7 +2,7 @@
 description: Apply the personal engineering standard to this project - OpenSpec (with an optional ADR artifact) + LikeC4 architecture diagrams. Works on a new (empty/near-empty) or an existing project.
 ---
 
-# /std:init
+# /openspec:init
 
 Wire this project to follow the standard: **OpenSpec** drives "what are we
 changing now" (proposal/specs/design/tasks), an optional **ADR** artifact
@@ -27,13 +27,13 @@ command. If it prints `unset` or empty, fall back:
 python3 -c "
 import json
 d = json.load(open('$HOME/.claude/plugins/installed_plugins.json'))
-entries = d['plugins'].get('std@ai', [])
+entries = d['plugins'].get('openspec@ai', [])
 print(entries[0]['installPath'] if entries else '')
 "
 ```
 
-If that's also empty, ask the user where the `std` plugin (from the `ai`
-marketplace / `hiukky/ai` repo) is installed locally, and use that path.
+If that's also empty, ask the user where the `openspec` plugin (from the
+`ai` marketplace / `hiukky/ai` repo) is installed locally, and use that path.
 All paths below (`$PLUGIN_ROOT/resources/...`) assume you've resolved this.
 
 ## 1. Detect project state
@@ -112,7 +112,7 @@ cp "$PLUGIN_ROOT/resources/docs/adr-readme.md" docs/adr/README.md
 ```
 
 Do not create any numbered ADR files here - those come from real
-decisions (via the OpenSpec `adr` artifact or `/std:adr`), not from init.
+decisions (via the OpenSpec `adr` artifact or `/openspec:adr`), not from init.
 
 ## 7. LikeC4: scaffold `docs/architecture/likec4/`
 

@@ -1,4 +1,4 @@
-// REFERENCE ONLY - not copied verbatim by /std:init. Author the real
+// REFERENCE ONLY - not copied verbatim by /openspec:init. Author the real
 // docs/architecture/likec4/model.c4 from the actual project being
 // initialized, following this shape:
 //   actor(s) -> system -> container(s) -> component(s) (optional depth)

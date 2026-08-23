@@ -30,7 +30,7 @@ entry doesn't reimplement its skill, it just points the harness at it.
 
 ## Plugins
 
-### `std`
+### `openspec`
 
 Personal engineering standard, portable across projects: **OpenSpec**
 (proposal/specs/design/tasks) extended with an optional **ADR** artifact
@@ -38,15 +38,15 @@ for durable, hard-to-reverse decisions, plus **LikeC4** for living
 architecture diagrams.
 
 ```
-/std:init   Apply the standard to a new or existing project
-/std:adr    Record one ADR ad hoc, outside an OpenSpec change
+/openspec:init   Apply the standard to a new or existing project
+/openspec:adr    Record one ADR ad hoc, outside an OpenSpec change
 ```
 
-The `adr` skill behind `/std:adr` also triggers proactively - when a
+The `adr` skill behind `/openspec:adr` also triggers proactively - when a
 decision made during other work clears the ADR bar, not only when
 explicitly asked.
 
-See `plugins/std/`.
+See `plugins/openspec/`.
 
 ### `git`
 
@@ -83,7 +83,7 @@ See `plugins/coordination/`.
 ## Install
 
 ```
-uze add https://github.com/hiukky/ai#plugins/std
+uze add https://github.com/hiukky/ai#plugins/openspec
 uze add https://github.com/hiukky/ai#plugins/git
 uze add https://github.com/hiukky/ai#plugins/coordination
 ```

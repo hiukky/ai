@@ -32,6 +32,6 @@ never renumbered), using this structure (Michael Nygard style):
   need one.
 - Most ADRs are created automatically as part of an OpenSpec change (the
   `adr` artifact, when the change's design.md contains a qualifying
-  decision) - see `openspec/config.yaml`. Use `/std:adr` to record one
+  decision) - see `openspec/config.yaml`. Use `/openspec:adr` to record one
   ad hoc (a decision made outside an OpenSpec change, or backfilling a
   decision that predates this convention).
