@@ -18,10 +18,10 @@
       "keywords": ["git", "commit", "conventional-commits", "workflow"]
     },
     {
-      "name": "coordination",
-      "source": "./coordination",
+      "name": "team",
+      "source": "./team",
       "description": "Personal multi-agent coordination toolkit - starting with a Git worktree coordinator that isolates parallel agent writers safely.",
-      "keywords": ["git", "worktree", "multi-agent", "parallel-agents", "coordination", "isolation"]
+      "keywords": ["git", "worktree", "multi-agent", "parallel-agents", "coordination", "team", "isolation"]
     }
   ]
 }

@@ -63,7 +63,7 @@ confirmation.
 
 See `git/`.
 
-### `coordination`
+### `team`
 
 Multi-agent coordination on top of Git worktrees: the
 `git-worktree-coordinator` skill gives multiple agents exclusive,
@@ -75,10 +75,10 @@ cleanup) to [worktrunk](https://worktrunk.dev) (`wt`) rather than
 reimplementing them.
 
 ```
-/coordination:worktree   Create/verify/list/finish/remove a worktree
+/team:worktree   Create/verify/list/finish/remove a worktree
 ```
 
-See `coordination/`.
+See `team/`.
 
 ## Install
 
@@ -95,7 +95,7 @@ dependency):
 ```
 uze plugin install openspec@ai
 uze plugin install git@ai
-uze plugin install coordination@ai
+uze plugin install team@ai
 ```
 
 Or scoped to just the current project instead (adds to that project's
@@ -104,7 +104,7 @@ Or scoped to just the current project instead (adds to that project's
 ```
 uze openspec@ai
 uze git@ai
-uze coordination@ai
+uze team@ai
 ```
 
 (dotfiles-managed machines: this repo is cloned/updated locally by that
