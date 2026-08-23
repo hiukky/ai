@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Commit (and push) finished work using Conventional Commits, proactively when a unit of work is genuinely done - not just when the user asks to commit, save, or check in their changes. Use whenever you finish implementing something, fixing something, or completing a task, in any project.
+description: Commit (and push) changes using Conventional Commits. Use this whenever the user explicitly asks to commit, push, save, or check in changes - "commit this", "commit and push", "save my work", "git commit", "faz um commit" - and also proactively, on your own initiative, once a unit of work is genuinely done, not only when explicitly asked. Applies in any project with a git repository.
 ---
 
 # Commit (Conventional Commits)
