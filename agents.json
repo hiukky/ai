@@ -7,19 +7,19 @@
   "plugins": [
     {
       "name": "openspec",
-      "source": "./plugins/openspec",
+      "source": "./openspec",
       "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable decisions, plus LikeC4 for living architecture diagrams. /openspec:init wires a project (new or existing) to follow it.",
       "keywords": ["openspec", "adr", "architecture-decision-records", "likec4", "architecture", "standard"]
     },
     {
       "name": "git",
-      "source": "./plugins/git",
+      "source": "./git",
       "description": "Personal git workflow conventions - starting with a Conventional Commits skill.",
       "keywords": ["git", "commit", "conventional-commits", "workflow"]
     },
     {
       "name": "coordination",
-      "source": "./plugins/coordination",
+      "source": "./coordination",
       "description": "Personal multi-agent coordination toolkit - starting with a Git worktree coordinator that isolates parallel agent writers safely.",
       "keywords": ["git", "worktree", "multi-agent", "parallel-agents", "coordination", "isolation"]
     }

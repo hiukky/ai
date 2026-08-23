@@ -8,19 +8,19 @@
 
 This repo is a **UZE marketplace** (`agents.json`, the same shape UZE's
 own official marketplace uses) that catalogs one or more plugins, each
-self-contained under `plugins/<name>/`:
+self-contained at the repo's top level - `agents.json` is the only thing
+here that isn't itself a plugin:
 
 ```
 agents.json   Marketplace catalog
-plugins/
-  <name>/
-    plugin.json     Plugin manifest (Agent Plugins 1.0)
-    agents/         Custom subagents
-    skills/         Skill packages - agent-discoverable capabilities
-    commands/       Slash commands - thin, human-invoked wrappers around a skill
-    hooks/          Hook configurations
-    resources/      Bundled files a plugin's commands/skills read at runtime
-    .mcp.json       MCP server definitions
+<name>/
+  plugin.json     Plugin manifest (Agent Plugins 1.0)
+  agents/         Custom subagents
+  skills/         Skill packages - agent-discoverable capabilities
+  commands/       Slash commands - thin, human-invoked wrappers around a skill
+  hooks/          Hook configurations
+  resources/      Bundled files a plugin's commands/skills read at runtime
+  .mcp.json       MCP server definitions
 ```
 
 Only what's actually in use exists at any given time; empty categories
@@ -46,7 +46,7 @@ The `adr` skill behind `/openspec:adr` also triggers proactively - when a
 decision made during other work clears the ADR bar, not only when
 explicitly asked.
 
-See `plugins/openspec/`.
+See `openspec/`.
 
 ### `git`
 
@@ -61,7 +61,7 @@ confirmation.
 /git:commit   Commit (and push) the current changes
 ```
 
-See `plugins/git/`.
+See `git/`.
 
 ### `coordination`
 
@@ -78,14 +78,33 @@ reimplementing them.
 /coordination:worktree   Create/verify/list/finish/remove a worktree
 ```
 
-See `plugins/coordination/`.
+See `coordination/`.
 
 ## Install
 
+Register this repo as a marketplace once:
+
 ```
-uze add https://github.com/hiukky/ai#plugins/openspec
-uze add https://github.com/hiukky/ai#plugins/git
-uze add https://github.com/hiukky/ai#plugins/coordination
+uze market add hiukky/ai
+```
+
+Then, machine-wide (works from any project, matches how these are
+actually used - personal dev-workflow tooling, not a per-project
+dependency):
+
+```
+uze plugin install openspec@ai
+uze plugin install git@ai
+uze plugin install coordination@ai
+```
+
+Or scoped to just the current project instead (adds to that project's
+`agents.lock`):
+
+```
+uze openspec@ai
+uze git@ai
+uze coordination@ai
 ```
 
 (dotfiles-managed machines: this repo is cloned/updated locally by that
