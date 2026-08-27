@@ -1,5 +1,5 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "openspec",
-  "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run /openspec:init in a new or existing project to apply it."
+  "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it."
 }

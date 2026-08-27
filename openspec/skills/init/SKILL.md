@@ -1,8 +1,16 @@
 ---
-description: Apply the personal engineering standard to this project - OpenSpec (with an optional ADR artifact) + LikeC4 architecture diagrams. Works on a new (empty/near-empty) or an existing project.
+name: init
+description: >-
+  Apply the personal engineering standard to this project - OpenSpec (with an
+  optional ADR artifact) + LikeC4 architecture diagrams. Works on a new
+  (empty/near-empty) or an existing project. Deliberate, one-time bootstrap:
+  human-invoked only; not meant to be auto-discovered by the model.
+invoke:
+  model: false
+  user: true
 ---
 
-# /openspec:init
+# Init (bootstrap this project's standard)
 
 Wire this project to follow the standard: **OpenSpec** drives "what are we
 changing now" (proposal/specs/design/tasks), an optional **ADR** artifact
@@ -112,7 +120,7 @@ cp "$PLUGIN_ROOT/resources/docs/adr-readme.md" docs/adr/README.md
 ```
 
 Do not create any numbered ADR files here - those come from real
-decisions (via the OpenSpec `adr` artifact or `/openspec:adr`), not from init.
+decisions (via the OpenSpec `adr` artifact or the `adr` skill), not from init.
 
 ## 7. LikeC4: scaffold `docs/architecture/likec4/`
 

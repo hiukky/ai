@@ -6,26 +6,31 @@
 
 ## Structure
 
-This repo is a **UZE marketplace** (`agents.json`, the same shape UZE's
+This repo is a **UZE marketplace** (`marketplace.json`, the same shape UZE's
 own official marketplace uses) that catalogs one or more plugins, each
-self-contained at the repo's top level - `agents.json` is the only thing
+self-contained at the repo's top level - `marketplace.json` is the only thing
 here that isn't itself a plugin:
 
 ```
-agents.json   Marketplace catalog
+marketplace.json   Marketplace catalog
 <name>/
   plugin.json     Plugin manifest (Agent Plugins 1.0)
   agents/         Custom subagents
   skills/         Skill packages - agent-discoverable capabilities
-  commands/       Slash commands - thin, human-invoked wrappers around a skill
+  skills/         Skill packages (agent-discoverable; invocation policy in frontmatter)
   hooks/          Hook configurations
-  resources/      Bundled files a plugin's commands/skills read at runtime
+  resources/      Bundled files a plugin's skills read at runtime
   .mcp.json       MCP server definitions
 ```
 
 Only what's actually in use exists at any given time; empty categories
 above are simply not created for a given plugin until needed. Plugins
-are grouped by domain, not by how a capability is invoked - a `commands/`
+are grouped by domain, not by how a capability is invoked - invocation
+semantics live in each SKILL.md's `invoke:` block (ADR-030): absent =
+model+user, `model: false, user: true` = explicit user-only action (the
+former Command), `model: true, user: false` = background-only. No
+`commands/` directory; integrations derive vendor surfaces from that one
+policy.
 entry doesn't reimplement its skill, it just points the harness at it.
 
 ## Plugins
@@ -38,11 +43,11 @@ for durable, hard-to-reverse decisions, plus **LikeC4** for living
 architecture diagrams.
 
 ```
-/openspec:init   Apply the standard to a new or existing project
-/openspec:adr    Record one ADR ad hoc, outside an OpenSpec change
+init (user-only)  Apply the standard to a new or existing project
+adr               Record one ADR ad hoc, outside an OpenSpec change
 ```
 
-The `adr` skill behind `/openspec:adr` also triggers proactively - when a
+The `adr` skill also triggers proactively - when a
 decision made during other work clears the ADR bar, not only when
 explicitly asked.
 
@@ -58,7 +63,7 @@ rewriting pushed history stay outside that default and still need
 confirmation.
 
 ```
-/git:commit   Commit (and push) the current changes
+commit (model+user)   Commit (and push) the current changes - proactively and on demand
 ```
 
 See `git/`.
@@ -75,7 +80,7 @@ cleanup) to [worktrunk](https://worktrunk.dev) (`wt`) rather than
 reimplementing them.
 
 ```
-/team:worktree   Create/verify/list/finish/remove a worktree
+git-worktree-coordinator (model+user)   Create/verify/list/finish/remove a worktree
 ```
 
 See `team/`.

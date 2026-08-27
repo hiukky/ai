@@ -1,6 +1,6 @@
 # openspec/config.yaml additions
 
-`/openspec:init` merges these into the project's `openspec/config.yaml` (append
+The `init` skill merges these into the project's `openspec/config.yaml` (append
 to `context:` if the block doesn't already say something equivalent; merge
 into `rules:` rather than overwriting any existing rules).
 
@@ -17,7 +17,7 @@ Architecture decisions: significant, hard-to-reverse decisions get a
 numbered ADR under docs/adr/ (Nygard style: Context/Decision/
 Consequences), generated via the `adr` artifact in the OpenSpec schema
 (optional, only when a change's design.md contains a qualifying
-decision) or recorded ad hoc with /openspec:adr.
+decision) or recorded ad hoc with the `adr` skill.
 ```
 
 ## Set/merge `rules:`

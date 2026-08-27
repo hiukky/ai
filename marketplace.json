@@ -8,7 +8,7 @@
     {
       "name": "openspec",
       "source": "./openspec",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable decisions, plus LikeC4 for living architecture diagrams. /openspec:init wires a project (new or existing) to follow it.",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
       "keywords": ["openspec", "adr", "architecture-decision-records", "likec4", "architecture", "standard"]
     },
     {
