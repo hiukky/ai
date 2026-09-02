@@ -14,7 +14,7 @@
     {
       "name": "git",
       "source": "./git",
-      "description": "Personal git workflow conventions - starting with a Conventional Commits skill.",
+      "description": "Personal git workflow conventions: a Conventional Commits skill and a pull/merge request skill (gitflow branches, conventional titles).",
       "keywords": ["git", "commit", "conventional-commits", "workflow"]
     },
     {
