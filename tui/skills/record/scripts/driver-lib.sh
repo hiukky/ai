@@ -17,6 +17,14 @@
 #      verified, and a take that loses one aborts (exit 3) so the runner
 #      can retry it.
 
+# bash only: the library defines one-letter helpers (`k`, `p`) that a zsh
+# with an alias of the same name refuses to redefine, and the gestures rely
+# on bash string slicing.
+[ -n "${BASH_VERSION:-}" ] || {
+  printf 'driver-lib.sh: source me from bash (the driver needs a bash shebang)\n' >&2
+  return 1 2>/dev/null || exit 1
+}
+
 set -uo pipefail
 
 : "${TUI_SESSION:=tuirec}"
@@ -69,10 +77,36 @@ print(col + 1 if col != -1 else 0)
 ' "$1" "${3:-1}"
 }
 
+# col_of_last GLYPH [ROW] — the rightmost occurrence. Toolbar buttons live
+# at the right end of a strip whose tabs may carry the same glyph, so "the
+# first ✦" is often the wrong ✦.
+col_of_last() {
+  pane | sed -n "${2:-1}p" | python3 -c '
+import sys
+print(sys.stdin.readline().rstrip("\n").rfind(sys.argv[1]) + 1)
+' "$1"
+}
+
+# cell_of GLYPHS [MIN_COL] [MAX_COL] -> "ROW COL" of the first cell holding
+# any of GLYPHS. For one-cell affordances — a status mark, a badge — where
+# the target is the glyph itself rather than a label.
+cell_of() {
+  pane | python3 -c '
+import sys
+glyphs, lo, hi = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+for row, line in enumerate(sys.stdin.read().splitlines(), 1):
+    for col, ch in enumerate(line[lo - 1:hi], lo):
+        if ch in glyphs:
+            print(row, col)
+            raise SystemExit
+print(0, 0)
+' "$1" "${2:-1}" "${3:-9999}"
+}
+
 # The label of the active tab, read off the strip rather than assumed: the
 # name an app gives a new tab depends on what the other tabs are called.
 # Override TUI_TAB_PATTERN for a strip this regex does not fit.
-: "${TUI_TAB_PATTERN:=^\\s*[✦●○*]\\s+(.+?)(?:\\s\\s|\\s*$)}"
+: "${TUI_TAB_PATTERN:=^\\s*[✦●○*]\\s+(.+?)(?:\\s+[±⇧…!✕↑≡])?(?:\\s\\s|\\s*$)}"
 active_tab_label() {
   pane | sed -n 1p | python3 -c '
 import re, sys
@@ -199,3 +233,8 @@ wait_span() {
 # The first beat: everything recorded before it is app startup, which
 # `compress` collapses so the video opens on the app already there.
 begin() { : > "$TUI_MARKS"; mark driver_start; p "${1:-1.0}"; }
+
+# The last beat: marks the end, then quits the app the way a user would, so
+# asciinema closes the file. `compress` cuts from the mark, which keeps the
+# app's own exit — the write that blanks the screen — out of the video.
+end_take() { mark driver_end; p "${2:-0.6}"; k "${1:-C-q}"; p 2.0; }

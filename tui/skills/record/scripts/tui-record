@@ -5,7 +5,7 @@
 #   tui-record take   --driver D --out FILE [opts] -- COMMAND...
 #   tui-record check  CAST [--forbid REGEX]...
 #   tui-record redact CAST --pattern REGEX [--pattern REGEX]...
-#   tui-record compress CAST --marks FILE [--span 1.5] [--head 0]
+#   tui-record compress CAST --marks FILE [--span 1.5] [--head 0] [--tail 0.4]
 #   tui-record render CAST OUT.gif [--bg 0a0c0d] [--speed 1.4] [--font-size 14]
 #
 # Each subcommand is one stage of the pipeline and reads the previous
@@ -213,22 +213,23 @@ PY
 cmd_compress() {
   local cast="${1:-}"; shift || true
   [ -f "$cast" ] || die "compress needs an existing cast"
-  local marks="" span=1.5 head=0.0
+  local marks="" span=1.5 head=0.0 tail=0.4
   while [ $# -gt 0 ]; do
     case "$1" in
       --marks) marks="$2"; shift 2 ;;
       --span)  span="$2"; shift 2 ;;
       --head)  head="$2"; shift 2 ;;
+      --tail)  tail="$2"; shift 2 ;;
       *) die "unknown compress option: $1" ;;
     esac
   done
   : "${marks:=${cast%.cast}.marks}"
   [ -f "$marks" ] || die "no marks file at: $marks"
-  python3 - "$cast" "$marks" "$span" "$head" <<'PY'
+  python3 - "$cast" "$marks" "$span" "$head" "$tail" <<'PY'
 import json, sys
 
-cast_path, marks_path, span_target, head_target = sys.argv[1:5]
-span_target, head_target = float(span_target), float(head_target)
+cast_path, marks_path, span_target, head_target, tail_pad = sys.argv[1:6]
+span_target, head_target, tail_pad = float(span_target), float(head_target), float(tail_pad)
 
 lines = open(cast_path, encoding="utf-8", errors="replace").read().splitlines()
 header = json.loads(lines[0])
@@ -241,12 +242,37 @@ for line in open(marks_path):
         marks[parts[0]] = float(parts[1]) - t0
 
 # Every *_start/*_end pair is a stretch where the video was only waiting.
+# `driver_start`/`driver_end` are the take's own bounds, not a wait: pairing
+# them would squeeze the entire take into one span.
 spans = sorted(
     (marks[k], marks[k[: -len("_start")] + "_end"])
     for k in marks
-    if k.endswith("_start") and k[: -len("_start")] + "_end" in marks
+    if k.endswith("_start")
+    and k != "driver_start"
+    and k[: -len("_start")] + "_end" in marks
 )
 head = max(marks.get("driver_start", 0.0) - 0.6, 0.0)
+
+# Where the video ends. The app leaving the alternate screen is the last
+# thing worth showing: after it the pane is a bare shell, and a GIF loops,
+# so that tail reads as black at *both* ends. Trailing events can be cut
+# (unlike the startup ones) because nothing after them is ever drawn.
+def take_ends_at():
+    """Where the video ends: the driver's own mark, the app's exit, or both
+    — whichever comes first. The alternate-screen exit has to win a tie,
+    because that write is the one that blanks the screen, and a blank last
+    frame reads as a pause at *both* ends once the GIF loops."""
+    candidates = []
+    if "driver_end" in marks:
+        candidates.append(marks["driver_end"] + tail_pad)
+    for line in reversed(lines[1:]):
+        t, _, data = json.loads(line)
+        if "[?1049l" in data:
+            candidates.append(t - 0.01)
+            break
+    return min(candidates) if candidates else None
+
+cut = take_ends_at()
 
 def squeeze(t):
     """t with every over-long wait span shrunk to span_target."""
@@ -269,8 +295,12 @@ def remap(t):
     return head_target if t < head else squeeze(t) - head_at + head_target
 
 out = [lines[0]]
+dropped = 0
 for line in lines[1:]:
     t, kind, data = json.loads(line)
+    if cut is not None and t > cut:
+        dropped += 1
+        continue
     out.append(json.dumps([round(remap(t), 6), kind, data]))
 open(cast_path, "w", encoding="utf-8").write("\n".join(out) + "\n")
 
@@ -279,6 +309,8 @@ after = json.loads(out[-1])[0]
 for start, end in spans:
     print(f"wait of {end - start:.1f}s -> {min(end - start, span_target):.1f}s")
 print(f"startup of {head:.1f}s collapsed")
+if cut is not None:
+    print(f"tail cut at {cut:.1f}s ({dropped} events after the app closed)")
 print(f"{before:.0f}s → {after:.0f}s")
 PY
 }

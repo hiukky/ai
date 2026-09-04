@@ -26,6 +26,8 @@ Two environment knobs a driver can set before sourcing the library:
 read -r row col < <(row_of "Manage" 1 31)   # text, within a column band
 col=$(col_of '✦' 1 2)                        # 2nd occurrence on row 1
 label=$(active_tab_label)                    # what the app called the tab
+col=$(col_of_last '✦')                       # a toolbar button at the right
+read -r row col < <(cell_of '±⇧!' 1 31)      # a one-cell mark, in the sidebar
 ```
 
 **Always band the search.** A shell prompt reading `demo-app $` sits in the
@@ -33,9 +35,9 @@ pane; a sidebar entry named `demo-app` sits in the sidebar; an unbanded
 search finds whichever comes first, and clicking the pane instead of the
 sidebar is a silent no-op that derails everything after it.
 
-**Never assume a label the app generates.** Tab names, agent names and slot
-ids are the app's to choose, and they depend on what else exists — a second
-tab is only called "agent 2" if the first is still called "agent 1".
+**Never assume a label the app generates.** Tab names, item names and
+generated ids are the app's to choose, and they depend on what else exists —
+a second tab is only called "tab 2" if the first is still called "tab 1".
 
 ## Mouse
 
@@ -53,6 +55,12 @@ click_text TEXT [OFFSET] [MIN_COL] [MAX_COL]
 An app that enabled mouse reporting (`\e[?1000h` and friends, which the
 recorded stream shows at startup) cannot distinguish these from a hand.
 
+**The affordance you want is often the last one, not the first.** A tab
+whose label carries the same glyph as a toolbar button means `col_of` finds
+the tab; `col_of_last` finds the button. And some targets are a single cell
+with no label at all — a status mark, a badge — which is what `cell_of` is
+for.
+
 Three traps, all of which produce a *plausible-looking* wrong video:
 
 1. **`col=0` plus an offset.** "Not found" is 0, and `0 + 2` is column 2 —
@@ -66,7 +74,7 @@ Three traps, all of which produce a *plausible-looking* wrong video:
    re-read the column, then `dclick`.
 3. **A gesture that opens an editor.** Renaming in place puts a cursor in a
    label; if it did not open, the characters you type next go to the pane —
-   often to an agent's prompt box. Assert on the editor's own glyph (a
+   often to an input box in the pane. Assert on the editor's own glyph (a
    cursor bar in the label) before typing.
 
 ## Keyboard
@@ -95,8 +103,8 @@ connection. The default (26-66ms) is a fast, confident typist.
 ## Asserting
 
 ```bash
-require     "the agent opened" "Claude Code v" 20
-require_row "tab renamed"      "ping" 1 6
+require     "the tool started" "ready to edit" 20
+require_row "tab renamed"      "notes" 1 6
 refuse      "no approval box"  "Do you want to proceed"
 ```
 
@@ -109,30 +117,48 @@ Prefer the **narrowest** proof available. `require "docs"` will happily
 match `docs/lifecycle.md` in a file listing and tell you a tab was renamed
 when it was not; `require_row "docs" 1` proves the tab strip.
 
-Assert on something the app only draws in the state you want: an agent
-pane's version banner, an interrupt hint that only appears while a task
-runs, an editor's cursor glyph.
+Assert on something the app only draws in the state you want: a pane's
+version banner, an interrupt hint that only appears while work is running,
+an editor's cursor glyph.
+
+**A readiness proof belongs to the thing being opened.** If the take starts
+more than one kind of tool inside the app — two editors, two shells, two
+vendor CLIs — each has its own first screen and its own "working" hint.
+Parametrise the pattern instead of reusing the first one that worked:
+`open_tool 2 "Vendor B" "ctrl+p commands"` next to
+`open_tool 1 "Vendor A" "Vendor A v"`.
+
+**Typing can trigger the app's own popup.** A `/` inside a prompt opens a
+command palette in several TUIs, and the `Enter` that was meant to submit
+then picks a menu item instead — the text just sits there. Either keep the
+trigger character out of what you type, or dismiss the popup (`k Escape`)
+before submitting, and assert that the submission actually happened.
 
 ## Waiting
 
 ```bash
-wait_span agent_edit 120 test -n "$(git -C "$dir" status --porcelain)"
+wait_span first_write 120 test -s "$fixture/out/report.json"
 ```
 
 Waits for the condition, and brackets it with marks that `tui-record
 compress` uses to squeeze exactly that stretch. Keep the condition specific
-to the thing you are about to show — "some worktree is dirty" is satisfied by
-a different agent than the one on screen, and the beat that follows then
-opens an empty diff.
+to the thing you are about to show — "some file changed somewhere" is
+satisfied by a part of the app the viewer is not looking at, and the beat
+that follows then opens an empty panel.
 
 If you cannot express the wait as a condition, wait on the screen instead
 (`require` with a long timeout) rather than sleeping a guess.
 
 ## Ending a take
 
-Finish by quitting the app the way a user would (its quit key). asciinema
-writes the cast when the recorded command exits; a take that leaves the app
-running has to be killed, and a killed asciinema writes nothing at all.
+`end_take` marks the end and then quits the app the way a user would (its
+quit key, `C-q` by default). asciinema writes the cast when the recorded
+command exits; a take that leaves the app running has to be killed, and a
+killed asciinema writes nothing at all.
+
+The mark matters as much as the quit: `compress` cuts there, which keeps the
+app's own exit out of the video. That exit is the write that blanks the
+screen, and a blank last frame shows at both ends of a looping GIF.
 
 ## Housekeeping while driving
 

@@ -1,6 +1,6 @@
 ---
 name: record
-description: Record a terminal UI as a demo video worth publishing - an asciinema cast driven by a scripted, verified take, then cut and rendered to a GIF. Use whenever someone asks to record, film, capture or demo a TUI or CLI; to produce a README hero, a docs landing animation, a release-notes clip or a bug repro; or to redo a recording that is too long, too slow, robotic, visually off, or that leaked personal data. Also use when a recording driver misclicks, a beat silently does nothing, an agent-driven app makes the video wait, or a rendered GIF comes out blank, padded in the wrong colour, or too heavy to embed. Not for editing existing video files, screen-recording a GUI, or writing docs prose to accompany a demo.
+description: Record a terminal UI as a demo video worth publishing - an asciinema cast driven by a scripted, verified take, then cut and rendered to a GIF. Use whenever someone asks to record, film, capture or demo a TUI or CLI; to produce a README hero, a docs landing animation, a release-notes clip or a bug repro; or to redo a recording that is too long, too slow, robotic, visually off, or that leaked personal data. Also use when a recording driver misclicks, a beat silently does nothing, a long-running operation inside the app makes the video wait, or a rendered GIF comes out blank, padded in the wrong colour, or too heavy to embed. Not for editing existing video files, screen-recording a GUI, or writing docs prose to accompany a demo.
 compatibility: bash, tmux, asciinema (2.x or 3.x) and python3 for recording and cutting; agg for GIF rendering; ffmpeg optional, for inspecting frames and for mp4.
 ---
 
@@ -72,7 +72,8 @@ these actually leak:
 
 - **A `HOME` of its own**, exported through `env -i` along with an explicit
   `PATH`, `TERM`, `SHELL` and `LANG`. Nothing inherited: `env -i` is what
-  keeps the operator's variables (and their agent's) out of the take.
+  keeps the operator's variables — and those of whatever launched the
+  recording — out of the take.
 - **A runtime dir of its own** (`XDG_RUNTIME_DIR`) so the app's sockets
   don't collide with the operator's own running instance — and keep the
   path short: a UNIX socket path over ~100 bytes fails with
@@ -95,9 +96,13 @@ these actually leak:
 - **Silence first-run noise.** Onboarding wizards, tips, update banners and
   trust prompts are all state in the sandbox home; set them as already-seen
   before the take rather than clicking through them on camera.
+- **Grant permissions with an allowlist, not a bypass mode.** A tool's
+  "skip all prompts" mode usually opens a consent screen of its own, which
+  is then the first thing in your video; an explicit allow list gets the
+  same silence with nothing to click.
 
-If the app under test drives another tool that needs credentials (an agent
-harness, a cloud CLI), decide deliberately: either the demo runs
+If the app under test drives another tool that needs credentials (a cloud
+CLI, a database client, an AI harness), decide deliberately: either the demo runs
 unauthenticated and shows a login screen, or the operator grants access on
 purpose. **Never copy a credential file into a sandbox on your own
 initiative** — ask, and prefer a symlink to the real one (nothing is
@@ -139,7 +144,7 @@ Rules that earn their place:
   2 — the top-left corner, which in most TUIs is a different screen. The
   library refuses instead; keep it that way in your own helpers.
 - **Ask the app what things are called.** A second tab is not necessarily
-  "agent 2" — the label depends on what the other tabs are named.
+  "tab 2" — the label depends on what the other tabs are named.
   `active_tab_label` reads it.
 - **Verify in the right region.** `require` scans the whole screen, which
   will happily match a filename in a file list; `require_row` scans one row.
@@ -154,8 +159,8 @@ tui-record take --driver ./drive.sh --out demo.cast \
 ```
 
 `--reset` runs before every attempt: put the sandbox back to the state the
-take assumes (drop worktrees and branches, reset the repos, clear the app's
-own state). A take that starts from the previous take's leftovers records a
+take assumes: delete what the previous attempt created, restore the fixture
+data, clear the app's own state. A take that starts from the previous take's leftovers records a
 different video than the one you scripted.
 
 A driver that loses a beat exits `3`; `take` reports it and runs the whole
@@ -164,19 +169,23 @@ that have nothing to do with the take — the retry loop absorbs that too.
 
 ## 5. Cut the waiting, not the events
 
-Real software takes real time: an agent thinks, a build runs, a request
-flies. Wrap exactly those stretches in `wait_span`, which polls a shell
+Real software takes real time: a build runs, an index rebuilds, a request
+flies, a model answers. Wrap exactly those stretches in `wait_span`, which polls a shell
 condition and brackets it with marks:
 
 ```bash
-wait_span agent_edit 120 test -n "$(git -C "$checkout" status --porcelain)"
+wait_span build 120 test -f "$fixture/dist/app.js"
 ```
 
 `tui-record compress` then rescales those spans to `--span` seconds and
 collapses everything before the first beat, so the video opens on the app
 already running.
 
-**Compression rescales timestamps; it never drops events.** The startup
+A GIF loops, so a blank final frame reads as a pause at *both* ends: the
+cut also drops the app's exit — the write that blanks the screen — so the
+last frame is the last thing worth looking at.
+
+**Compression rescales timestamps; it never drops events before the end.** The startup
 frames carry the terminal's first full paint — drop them and the player
 draws the rest of the take onto a blank screen, which looks exactly like a
 broken sidebar that renders nowhere else. If a rendered GIF is missing
@@ -228,10 +237,29 @@ Tell the person what remains visible that a scanner cannot judge: a plan
 name, a version number, a model name, a workspace title. Those are theirs to
 decide, but only if they are told.
 
+## What it costs
+
+Measured, so a plan can be made against it rather than a guess:
+
+| Stage | Time |
+|---|---|
+| One successful take | the take's own length + ~12s (settle, then asciinema closing the file) |
+| A lost beat | that attempt's time again — the runner resets and repeats |
+| `compress`, `check` | well under a second each |
+| `render` | ~16s for a 45s cast at 152 columns |
+| Re-cut and re-render from the raw cast | ~20s, no recording |
+
+What dominates is the app's own latency inside the video (an operation that
+takes two minutes is two minutes of wall clock even when `wait_span` keeps
+it out of the cut), and then lost beats. Writing and debugging a driver for an
+app nobody has recorded before costs far more than any of this — budget it
+as the real work, and keep the driver afterwards.
+
 ## When a take goes wrong
 
 | Symptom | Cause |
 |---|---|
+| A second of black at the start or the end | The app's exit is still in the cut. A GIF loops, so a blank last frame shows at both ends. |
 | A prompt was typed into the shell instead of the app | A gesture missed and the driver kept going. Add `require` after it. |
 | The driver clicked something unrelated | A coordinate was 0 and an offset was added to it. |
 | A double-click did nothing | The strip redrew between the two clicks; select, settle, re-read, then double-click. |
@@ -247,8 +275,8 @@ decide, but only if they are told.
 - Never `pkill -f <pattern>` while driving: the pattern matches the very
   shell running the driver, and the recording dies with it. Kill by pid,
   after confirming the pid through `/proc/<pid>/cmdline`.
-- Recording an app that spawns an agent or another CLI means that tool's own
-  first-run UI is part of your video. Check what it prints before the take,
+- Recording an app that spawns another tool means that tool's own first-run
+  UI is part of your video. Check what it prints before the take,
   not after.
 - Keep the driver, the reset script and the sandbox around. The next
   version of the tool needs the same video, and reproducing the environment

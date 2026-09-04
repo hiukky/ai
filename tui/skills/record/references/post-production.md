@@ -28,12 +28,22 @@ keeps `SHELL`, which is a small leak and a pointless one.
   the video was waiting, rescaled to `--span` seconds (default 1.5).
 - Everything before `driver_start` is app startup, collapsed to a single
   instant so the video opens on the app already running.
+- Everything after the app leaves the alternate screen (its `[?1049l`) is
+  cut, along with that write itself — it is the one that blanks the screen.
+  A driver can mark the end explicitly instead (`mark driver_end`), and
+  `--tail` says how much to keep after it.
 
-**It never deletes an event, and neither should anything you write.**
-Dropping the startup events removes the first full paint; the player then
-applies the rest of the take to a blank screen and the output shows panels
-missing that the live app clearly draws. The symptom looks like an app bug,
-which is what makes it expensive: it sends you debugging the wrong thing.
+**It never deletes an event before the end, and neither should anything you
+write.** Dropping the startup events removes the first full paint; the
+player then applies the rest of the take to a blank screen, and the output
+shows panels missing that the live app clearly draws. The symptom looks like
+an app bug, which is what makes it expensive: it sends you debugging the
+wrong thing.
+
+Trailing events are the exception — nothing after them is ever drawn, so
+cutting the app's exit is both safe and necessary. A GIF loops, so a blank
+final frame reads as a pause at *both* ends, which is why a video that
+"starts with a second of black" is usually a tail problem.
 
 Rescaling *within* a span is deliberate rather than cutting it out: a
 spinner that keeps moving, sped up, reads as time passing. A hard cut reads
@@ -52,7 +62,7 @@ binary).
 | Option | Use |
 |---|---|
 | `--bg` | The app's own background colour. |
-| `--fg`, `--palette` | The 16 ANSI colours; matters for the shells and agents inside the app, not the app's own truecolour drawing. |
+| `--fg`, `--palette` | The 16 ANSI colours; matters for shells and other programs running inside the app, not the app's own truecolour drawing. |
 | `--font-size` | 13-14 for a README; the pixel size of the output scales with it. |
 | `--speed` | 1.0-1.4 reads as a person. Past ~1.5 it reads as fast-forward. |
 | `--idle` | Caps gaps between writes. Useless while a spinner animates — that is what `compress` is for. |
