@@ -30,20 +30,6 @@
       ]
     },
     {
-      "name": "team",
-      "source": "./team",
-      "description": "Personal multi-agent coordination toolkit - starting with a Git worktree coordinator that isolates parallel agent writers safely.",
-      "keywords": [
-        "git",
-        "worktree",
-        "multi-agent",
-        "parallel-agents",
-        "coordination",
-        "team",
-        "isolation"
-      ]
-    },
-    {
       "name": "tui",
       "source": "./tui",
       "description": "Terminal UI media - starting with a record skill that turns a TUI into a demo video: an isolated sandbox, a scripted and verified take, waits cut out, and a leak check before it is published.",

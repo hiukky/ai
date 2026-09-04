@@ -68,23 +68,6 @@ commit (model+user)   Commit (and push) the current changes - proactively and on
 
 See `git/`.
 
-### `team`
-
-Multi-agent coordination on top of Git worktrees: the
-`git-worktree-coordinator` skill gives multiple agents exclusive,
-verified ownership of a worktree - an atomic claim registry plus a
-`verify` check that proves which agent, if any, actually owns the
-worktree a process is standing in before it edits anything. Delegates
-worktree mechanics (creation, path templating, hooks, safe branch
-cleanup) to [worktrunk](https://worktrunk.dev) (`wt`) rather than
-reimplementing them.
-
-```
-git-worktree-coordinator (model+user)   Create/verify/list/finish/remove a worktree
-```
-
-See `team/`.
-
 ### `tui`
 
 Terminal UI media. The `record` skill produces a demo video of a TUI that
@@ -119,7 +102,6 @@ dependency):
 ```
 uze plugin install openspec@ai
 uze plugin install git@ai
-uze plugin install team@ai
 uze plugin install tui@ai
 ```
 
@@ -129,7 +111,6 @@ Or scoped to just the current project instead (adds to that project's
 ```
 uze openspec@ai
 uze git@ai
-uze team@ai
 uze tui@ai
 ```
 
