@@ -1,0 +1,46 @@
+---
+title: The catalog
+description: Every plugin in the marketplace, what it carries, and how to install it
+---
+
+Plugins are grouped by **domain** (what the capability is about), not by how
+it is invoked. Each is self-contained: its own manifest, its own skills, its own
+bundled resources. Nothing is shared between them, and installing one never
+pulls in another.
+
+<PluginCards />
+
+## Every skill
+
+<SkillTable />
+
+## What is deliberately not split out
+
+Premature separation is easy to regret, so a few things stay folded into an
+existing plugin until they earn their own:
+
+- **`architecture` / `specification` split of `openspec`**: OpenSpec and
+  ADR/LikeC4 are one coupled workflow today. Split them when one needs to
+  evolve independently of the other, not before.
+- **A standalone `project` plugin**: there is exactly one bootstrap entry
+  point, `openspec:init`. A second, non-OpenSpec bootstrap concern is what
+  would justify the split.
+- **An `adapters/` layer for per-harness translation**: UZE already detects
+  and provisions claude-code, codex, opencode and antigravity. Confirm it
+  doesn't already cover the case before duplicating it here.
+
+## Install
+
+Machine-wide, from any project:
+
+```sh
+uze plugin install openspec@ai
+uze plugin install git@ai
+uze plugin install tui@ai
+```
+
+Or scoped to one project, written into its `agents.lock`:
+
+```sh
+uze openspec@ai
+```

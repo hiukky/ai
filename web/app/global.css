@@ -1,0 +1,130 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/lib/default-colors.css';
+@import 'fumadocs-ui/css/preset.css';
+@plugin 'tailwind-scrollbar';
+
+/*
+  ai: one accent on a near-neutral ground, structure from hairline dividers
+  rather than filled panels. Deliberately not uze's sage green: this is a
+  marketplace that sits *on top of* uze, and reading as a second surface of the
+  same product would be a lie about what it is.
+
+  Every colour below is indirected through a `--p-*` variable, and the four
+  palettes are all shipped. Switching is one constant (lib/palette.ts), or
+  `?palette=<name>` on any URL, which is how you compare them without a build.
+  Adding a fifth is one pair of blocks in palettes.css and one entry in that
+  file's `palettes` list.
+*/
+@import './palettes.css';
+
+@theme {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ui-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-paper: var(--p-paper);
+  --color-ink: var(--p-ink);
+  --color-muted: var(--p-muted);
+  --color-line: var(--p-line);
+  --color-surface: var(--p-surface);
+  --color-accent: var(--p-accent);
+
+  --color-fd-background: var(--color-paper);
+  --color-fd-foreground: var(--color-ink);
+  --color-fd-muted: var(--color-surface);
+  --color-fd-muted-foreground: var(--color-muted);
+  --color-fd-popover: var(--color-paper);
+  --color-fd-popover-foreground: var(--color-ink);
+  --color-fd-card: var(--color-surface);
+  --color-fd-card-foreground: var(--color-ink);
+  --color-fd-border: var(--color-line);
+  --color-fd-primary: var(--color-accent);
+  --color-fd-primary-foreground: var(--color-paper);
+  --color-fd-secondary: var(--color-surface);
+  --color-fd-secondary-foreground: var(--color-ink);
+  --color-fd-accent: var(--color-surface);
+  --color-fd-accent-foreground: var(--color-ink);
+  --color-fd-ring: var(--color-accent);
+  --color-fd-overlay: hsla(0, 0%, 0%, 0.2);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+/*
+  The install line is the one thing on the landing page that must be found
+  before anything is read, so it gets the page's only piece of depth: a soft
+  accent bloom that lifts it off the ground without a filled slab.
+*/
+.ai-bloom {
+  position: relative;
+  /* Without a stacking context of its own, the `z-index: -1` below paints the
+     bloom behind <body>'s background rather than behind the command line, and
+     nothing shows. */
+  isolation: isolate;
+}
+.ai-bloom::before {
+  content: '';
+  position: absolute;
+  inset: -60% -12%;
+  z-index: -1;
+  background: radial-gradient(50% 50% at 50% 50%, var(--color-accent), transparent 70%);
+  opacity: 0.12;
+  filter: blur(56px);
+  pointer-events: none;
+}
+.dark .ai-bloom::before {
+  opacity: 0.16;
+}
+
+/*
+  Cards. A hairline that warms to the accent is the whole interaction. No lift,
+  no shadow, nothing that moves the grid.
+
+  The card reads as clickable, so it has to be clickable, and across its whole
+  area rather than only on the title. An anchor cannot wrap the card because the
+  card contains its own links, so the title's anchor is stretched over the card
+  instead (`.ai-card-target`) and the inner links are lifted above it
+  (`.ai-card-link`). One anchor per card, so the accessible name stays the
+  title and nothing is announced twice.
+*/
+.ai-card {
+  position: relative;
+  border: 1px solid var(--color-line);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+.ai-card:hover,
+.ai-card:focus-within {
+  border-color: color-mix(in oklab, var(--color-accent) 55%, transparent);
+  background-color: color-mix(in oklab, var(--color-accent) 4%, transparent);
+}
+.ai-card-target::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Above the card's own text, below anything marked .ai-card-link. */
+  z-index: 0;
+}
+.ai-card-link {
+  position: relative;
+  z-index: 1;
+}
+
+/* The dotted rule that separates a pipeline's steps from its result. */
+.ai-rule-dotted {
+  background-image: linear-gradient(
+    to right,
+    var(--color-line) 0 3px,
+    transparent 3px 7px
+  );
+  background-size: 7px 1px;
+  background-repeat: repeat-x;
+  height: 1px;
+}

@@ -1,0 +1,156 @@
+{
+  "owner": {
+    "name": "Romullo",
+    "url": "https://github.com/hiukky"
+  },
+  "plugins": [
+    {
+      "name": "openspec",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "manifestDescription": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "keywords": [
+        "openspec",
+        "adr",
+        "architecture-decision-records",
+        "likec4",
+        "architecture",
+        "standard"
+      ],
+      "skills": [
+        {
+          "id": "adr",
+          "name": "adr",
+          "plugin": "openspec",
+          "description": "Record an Architecture Decision Record (ADR) under docs/adr/ - proactively, when a decision made during other work clears the bar (a new external dependency, a technology/pattern choice with long-term consequences, a boundary expensive to move later), not only when explicitly asked via the `adr` skill. Also use to backfill a past decision that predates this project's docs/adr/ convention. Requires the project to have already run the `init` skill (docs/adr/ must exist).",
+          "invoke": {
+            "model": true,
+            "user": true
+          },
+          "compatibility": null,
+          "references": [],
+          "scripts": [],
+          "path": "openspec/skills/adr"
+        },
+        {
+          "id": "init",
+          "name": "init",
+          "plugin": "openspec",
+          "description": "Apply the personal engineering standard to this project - OpenSpec (with ADRs formalized at archive time) + LikeC4 architecture diagrams. Works on a new (empty/near-empty) or an existing project. Deliberate, one-time bootstrap: human-invoked only; not meant to be auto-discovered by the model.",
+          "invoke": {
+            "model": false,
+            "user": true
+          },
+          "compatibility": null,
+          "references": [],
+          "scripts": [],
+          "path": "openspec/skills/init"
+        }
+      ],
+      "carries": [
+        "skills",
+        "resources"
+      ],
+      "resources": [
+        "docs/adr-readme.md",
+        "docs/likec4-starter/model.c4",
+        "docs/likec4-starter/specification.c4",
+        "docs/likec4-starter/views.c4",
+        "openspec/config-rules.md",
+        "openspec/schema/schema.yaml",
+        "openspec/schema/templates/adr.md",
+        "openspec/schema/templates/design.md",
+        "openspec/schema/templates/proposal.md",
+        "openspec/schema/templates/spec.md",
+        "openspec/schema/templates/tasks.md"
+      ],
+      "path": "openspec"
+    },
+    {
+      "name": "git",
+      "description": "Personal git workflow conventions: a Conventional Commits skill and a pull/merge request skill (gitflow branches, conventional titles).",
+      "manifestDescription": "Personal git workflow conventions: Conventional Commits and gitflow-named pull/merge requests.",
+      "keywords": [
+        "git",
+        "commit",
+        "conventional-commits",
+        "workflow"
+      ],
+      "skills": [
+        {
+          "id": "commit",
+          "name": "commit",
+          "plugin": "git",
+          "description": "Commit (and push) changes using Conventional Commits. Use this whenever the user explicitly asks to commit, push, save, or check in changes - \"commit this\", \"commit and push\", \"save my work\", \"git commit\", \"faz um commit\" - and also proactively, on your own initiative, once a unit of work is genuinely done, not only when explicitly asked. Applies in any project with a git repository.",
+          "invoke": {
+            "model": true,
+            "user": true
+          },
+          "compatibility": null,
+          "references": [],
+          "scripts": [],
+          "path": "git/skills/commit"
+        },
+        {
+          "id": "pr",
+          "name": "pr",
+          "plugin": "git",
+          "description": "Open, name and describe a pull/merge request (GitHub PR, GitLab MR) and its branch. Use whenever the user asks to open a PR/MR, \"abre um PR\", \"cria o MR\", \"manda pra revisão\", or when finished work on a branch needs to reach the default branch through review - and before publishing a branch for review, to name it right. Applies in any project with a remote and a review flow.",
+          "invoke": {
+            "model": true,
+            "user": true
+          },
+          "compatibility": null,
+          "references": [],
+          "scripts": [],
+          "path": "git/skills/pr"
+        }
+      ],
+      "carries": [
+        "skills"
+      ],
+      "resources": [],
+      "path": "git"
+    },
+    {
+      "name": "tui",
+      "description": "Terminal UI media - starting with a record skill that generates a demo video from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in.",
+      "manifestDescription": "Terminal UI media: recording a TUI as a demo video people will actually watch — isolated, verified, reproducible.",
+      "keywords": [
+        "tui",
+        "asciinema",
+        "demo",
+        "screencast",
+        "gif",
+        "recording",
+        "documentation"
+      ],
+      "skills": [
+        {
+          "id": "record",
+          "name": "record",
+          "plugin": "tui",
+          "description": "Record a terminal UI as a demo video worth publishing - an asciinema cast driven by a scripted, verified take, then cut and rendered to a GIF. Use whenever someone asks to record, film, capture or demo a TUI or CLI; to produce a README hero, a docs landing animation, a release-notes clip or a bug repro; or to redo a recording that is too long, too slow, robotic, visually off, or that leaked personal data. Also use when a recording driver misclicks, a beat silently does nothing, a long-running operation inside the app makes the video wait, or a rendered GIF comes out blank, padded in the wrong colour, or too heavy to embed. Not for editing existing video files, screen-recording a GUI, or writing docs prose to accompany a demo.",
+          "invoke": {
+            "model": true,
+            "user": true
+          },
+          "compatibility": "bash, tmux, asciinema (2.x or 3.x) and python3 for recording and cutting; agg for GIF rendering; ffmpeg optional, for inspecting frames and for mp4.",
+          "references": [
+            "driving.md",
+            "post-production.md",
+            "spec.md"
+          ],
+          "scripts": [
+            "tui-record"
+          ],
+          "path": "tui/skills/record"
+        }
+      ],
+      "carries": [
+        "skills"
+      ],
+      "resources": [],
+      "path": "tui"
+    }
+  ]
+}

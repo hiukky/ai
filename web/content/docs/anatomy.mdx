@@ -1,0 +1,92 @@
+---
+title: Plugin anatomy
+description: What a plugin in this marketplace is made of, and which slots it fills
+---
+
+Every plugin here follows [Agent Plugins 1.0](https://agent-plugins.org) and is
+self-contained under its own directory at the repository root. Only the
+categories actually in use are created. An empty `hooks/` is noise, not
+structure.
+
+<Files>
+  <File name="marketplace.json" />
+  <Folder name="<plugin>" defaultOpen>
+    <File name="plugin.json" />
+    <Folder name="skills" defaultOpen>
+      <Folder name="<skill>" defaultOpen>
+        <File name="SKILL.md" />
+        <Folder name="references" />
+        <Folder name="scripts" />
+      </Folder>
+    </Folder>
+    <Folder name="agents" />
+    <Folder name="hooks" />
+    <Folder name="resources" />
+    <File name=".mcp.json" />
+  </Folder>
+</Files>
+
+## The slots
+
+| Path | Holds | In use here |
+| --- | --- | --- |
+| `plugin.json` | the Agent Plugins 1.0 manifest: name and description | every plugin |
+| `skills/` | capability packages, one `SKILL.md` each | every plugin |
+| `skills/<s>/references/` | long material the skill loads on demand | `tui:record` |
+| `skills/<s>/scripts/` | executables the skill drives | `tui:record` |
+| `resources/` | files a skill copies into a project at runtime | `openspec` |
+| `agents/` | custom subagent profiles | not yet |
+| `hooks/` | hook configs, portable across harnesses | not yet |
+| `.mcp.json` | MCP server declarations | not yet |
+
+`marketplace.json` at the repository root is the catalog, and the only file
+there that isn't itself part of a plugin or of this site. It carries each
+plugin's `name`, `source`, `description` and `keywords`. The description a
+person reads in `uze list` comes from here, while `plugin.json`'s description
+travels inside the package.
+
+## `references/` versus `resources/`
+
+Both hold files that aren't the `SKILL.md`, and the distinction is who they are
+for:
+
+- **`references/`** is for the **agent to read**: a vocabulary, a troubleshooting
+  table, a worked example. Kept out of the skill body so it costs nothing until
+  the moment it is needed.
+- **`resources/`** is for the agent to **copy into a project**: a schema, a
+  template, a starter file. `openspec:init` installs
+  `resources/openspec/schema/` into an adopting project as
+  `openspec/schemas/adr-driven/`.
+
+That second relationship is a mirror, not a fork. The per-project copy tracks
+the plugin, so `init` overwrites it on every run and hand-edits do not survive.
+A project that needs a different schema forks it under a different name.
+
+## Rules the repository holds itself to
+
+- **Keep `marketplace.json` in sync** when adding or removing a plugin:
+  `name`, `source`, `description`, `keywords`. This site is generated from it,
+  so an unregistered plugin is an invisible plugin.
+- **Keep each plugin self-contained** under `<name>/` at the root. Don't leak
+  plugin files into shared space next to `marketplace.json`, and don't nest one
+  plugin inside another.
+- **Never hand-edit UZE-managed regions** (`<!-- uze:begin -->` /
+  `<!-- uze:end -->`). Run `uze context reconcile` instead.
+- **Mirror upstream expectations** for `openspec` resources. The per-project
+  copies are generated, not authored.
+- **Conventional Commits** for messages, per the [`git`](/docs/plugins/git)
+  plugin's own skill.
+
+## Validating
+
+There is no build, test or lint at the repository root. It is a catalog, not a
+runnable app. Shape is checked with UZE's own tooling:
+
+```sh
+uze list             # marketplaces and the plugins they resolve
+uze context inspect  # what each detected harness is actually reading
+```
+
+The one exception is this documentation site, which lives under `web/` and is a
+normal Next.js app. See [adding a plugin](/docs/authoring) for what it expects
+from a new entry.

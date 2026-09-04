@@ -1,0 +1,63 @@
+---
+title: Welcome
+description: What this marketplace is, and what installing it gives your agent
+---
+
+**`ai` is a [UZE](https://uze.hiukky.com) marketplace of self-contained plugins.**
+Each one packages a slice of how I work (an engineering standard, git
+conventions, a toolkit for recording terminal UIs) as skills a coding agent
+discovers on its own.
+
+Register it once, and every plugin in it becomes addressable as `<name>@ai`:
+
+<InstallCommand command="uze market add hiukky/ai" />
+
+## What you get
+
+<PluginCards />
+
+## The one idea
+
+**A capability is a skill, and the skill says who may invoke it.**
+
+There is no `commands/` directory here. A capability's canonical logic lives in
+one `SKILL.md`, and the same file's `invoke:` block declares its policy. UZE
+derives each vendor's surface from that: a slash command in Claude Code, a
+`$name` in another harness, plain auto-discovery where the harness has no
+explicit invocation at all.
+
+| `invoke:` | Means | Here |
+| --- | --- | --- |
+| absent | model **and** user: discoverable by the agent, callable by name | the default; almost everything |
+| `model: false, user: true` | a deliberate action a person takes; the model never auto-triggers it | `openspec:init` |
+| `model: true, user: false` | background-only, with no meaning as a typed command | unused today |
+
+That is the whole invocation model. [Every skill and what triggers
+it](/docs/skills) is one table.
+
+<Callout type="info">
+  Skills here are written to fire **proactively**. `git:commit` commits when a
+  unit of work is genuinely done, not only when you ask; `openspec:adr` records
+  a decision when it clears the bar. That is the point of them being skills
+  rather than commands. Read each one's triggers before installing it, and it
+  will do less surprising things.
+</Callout>
+
+## What UZE adds
+
+This repository is a catalog. It does not install anything, watch anything, or
+run anything. [UZE](https://uze.hiukky.com) does all of that.
+
+UZE owns a plugin's bytes in one store and delivers them to every coding agent
+on the machine through that agent's own native mechanism: a real plugin where
+one exists, a native capability where it doesn't, an adapter only as a last
+resort. Install `git@ai` once and the `commit` skill is there in Claude Code,
+Codex, OpenCode and Antigravity, with its invocation policy intact, not
+flattened into whatever the lowest common denominator is.
+
+<Cards>
+  <Card title="Getting started" href="/docs/getting-started" description="Install UZE, register this marketplace, take a plugin" />
+  <Card title="The catalog" href="/docs/plugins" description="Every plugin, what it carries, and what its skills do" />
+  <Card title="Skill index" href="/docs/skills" description="All skills in one table, with their invocation policies" />
+  <Card title="Add a plugin" href="/docs/authoring" description="The layout, the conventions, and what to keep out" />
+</Cards>

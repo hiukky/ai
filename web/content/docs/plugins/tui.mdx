@@ -1,0 +1,90 @@
+---
+title: tui
+description: A terminal UI turned into a demo video worth publishing. Sandboxed, scripted, verified, and scanned before it ships
+---
+
+A demo video is a **take**, not a screen capture. Someone scripts it, a machine
+performs it the same way every time, and every gesture is checked before the
+next one runs. That is the difference between a recording that sells a tool and
+one that shows an app being poked at.
+
+<PluginHeader name="tui" />
+
+## Three claims the whole skill is built on
+
+- **The subject is a sandbox.** A terminal shows the operator's home directory,
+  prompt, hostname, repository, branches and open work. A demo gets published;
+  none of that should be.
+- **Nothing addresses the screen by a coordinate typed in advance.** Tab strips
+  shift, sidebars grow, labels are named by the app. Read the frame that is on
+  screen right now.
+- **A beat that silently did nothing spoils the take.** The next beat types into
+  whatever has focus and the video ends up looking like the app misbehaving.
+  Verify each gesture; abort and retry rather than ship it.
+
+## The pipeline
+
+`scripts/tui-record` is one stage per subcommand, each reading the previous
+stage's file, so a take can be re-cut and re-rendered without recording again.
+
+| Stage | Command |
+| --- | --- |
+| Check tools | `tui-record doctor` |
+| Perform the take | `tui-record take --driver D --out demo.cast -- <app>` |
+| Prove it is safe | `tui-record check demo.cast` |
+| Redact what is left | `tui-record redact demo.cast --pattern '<regex>'` |
+| Cut the waiting | `tui-record compress demo.cast --span 1.5` |
+| Render | `tui-record render demo.cast demo.gif --bg <app bg>` |
+
+`scripts/driver-lib.sh` is what a driver sources: screen reads, mouse and
+keyboard gestures, typing with human cadence, per-beat assertions, and the marks
+that tell `compress` which stretches were only waiting.
+
+## Cut the waiting, not the events
+
+Real software takes real time: a build runs, an index rebuilds, a model
+answers. Wrap exactly those stretches in `wait_span`, and `compress` rescales
+them to a fixed span:
+
+```bash
+wait_span build 120 test -f "$fixture/dist/app.js"
+```
+
+**Compression rescales timestamps; it never drops events before the end.** The
+startup frames carry the terminal's first full paint. Drop them and the player
+draws the rest of the take onto a blank screen, which looks exactly like a
+sidebar that renders nowhere else. If a rendered GIF is missing panels the live
+app clearly draws, that is the cause.
+
+The cut *does* drop the app's exit, though: a GIF loops, so a blank final frame
+reads as a pause at both ends.
+
+## The leak check is not advisory
+
+`tui-record check` runs on the final cast before anything is handed over. It
+scans for the operator's username, home path and hostname, session URLs, `sk-`
+style tokens, bearer headers, private keys and private IPs.
+
+Anything it finds is redacted with **same-length** replacements, so nothing on
+screen reflows. A redaction that shortens a string moves every glyph after it
+on that row.
+
+Then it tells the person what remains visible that a scanner cannot judge: a
+plan name, a version number, a model name, a workspace title. Those are theirs
+to decide, but only if they are told.
+
+## Bundled references
+
+The skill keeps its long material out of context until it is needed:
+`references/driving.md`, `references/post-production.md` and
+`references/example-driver.sh` are loaded on demand.
+
+`references/driving.md` is the driver vocabulary, including how to drive a
+**mouse-driven** TUI. `press`/`click`/`dclick` write SGR mouse events straight
+into the pty, which the app cannot tell from a hand. Reach for the mouse when
+the app does; a keyboard-only take of a pointer-driven app is what makes a video
+look robotic.
+
+## The skill
+
+<PluginSkills name="tui" />

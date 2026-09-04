@@ -1,0 +1,87 @@
+/*
+  The four palettes, in full. `:root` / `.dark` carry the default so the page is
+  never unstyled; `[data-palette='<name>']` overrides it at higher specificity,
+  which is what lib/palette.ts stamps on <html>.
+
+  Each palette is six values. Keep them six: the moment one palette needs a
+  seventh token, every other palette has to grow one too or it renders a hole.
+
+    paper    the page ground
+    ink      body text, and the fill of anything that must read as solid
+    muted    secondary text; must stay legible on `paper`, not decorative
+    line     hairline dividers and card borders; the site's only structure
+    surface  the one tinted ground, for code and hovers
+    accent   the single signal colour: links, marks, the dot in the wordmark
+*/
+
+/* amber / graphite (default) */
+:root {
+  --p-paper: #f5f2ec;
+  --p-ink: #14130f;
+  --p-muted: #6b6560;
+  --p-line: #e0d9cc;
+  --p-surface: #efe8da;
+  --p-accent: #8a5d12;
+}
+.dark {
+  --p-paper: #0b0b0d;
+  --p-ink: #ece8e1;
+  --p-muted: #a3a09a;
+  --p-line: #232120;
+  --p-surface: #1b1711;
+  --p-accent: #e0b567;
+}
+
+/* periwinkle / slate */
+:root[data-palette='periwinkle'] {
+  --p-paper: #f1f2f6;
+  --p-ink: #101218;
+  --p-muted: #63666f;
+  --p-line: #d8dae2;
+  --p-surface: #e6eaf4;
+  --p-accent: #3d5aa8;
+}
+.dark[data-palette='periwinkle'] {
+  --p-paper: #0a0b0e;
+  --p-ink: #e8e9ee;
+  --p-muted: #9a9da6;
+  --p-line: #1e2027;
+  --p-surface: #151a26;
+  --p-accent: #8fa8dd;
+}
+
+/* terracotta / warm ink */
+:root[data-palette='terracotta'] {
+  --p-paper: #f4efe9;
+  --p-ink: #17110d;
+  --p-muted: #6e645c;
+  --p-line: #e2d7c9;
+  --p-surface: #f3e4d8;
+  --p-accent: #a8481f;
+}
+.dark[data-palette='terracotta'] {
+  --p-paper: #0d0a09;
+  --p-ink: #ece4da;
+  --p-muted: #a49c93;
+  --p-line: #241e1a;
+  --p-surface: #1f1512;
+  --p-accent: #d98457;
+}
+
+/* violet / near-black */
+:root[data-palette='violet'] {
+  --p-paper: #f3f1f6;
+  --p-ink: #120f18;
+  --p-muted: #67626f;
+  --p-line: #ddd8e6;
+  --p-surface: #ebe6f5;
+  --p-accent: #55459b;
+}
+.dark[data-palette='violet'] {
+  --p-paper: #0a090c;
+  --p-ink: #eae7f0;
+  --p-muted: #9f9aa8;
+  --p-line: #201d26;
+  --p-surface: #191527;
+  --p-accent: #b3a5e0;
+}

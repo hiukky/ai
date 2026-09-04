@@ -8,6 +8,7 @@
 [![Plugins](https://img.shields.io/badge/plugins-3-7d97c9?style=flat-square&labelColor=1e1f20)](marketplace.json)
 [![Skills](https://img.shields.io/badge/skills-5-e0b567?style=flat-square&labelColor=1e1f20)](#plugins)
 [![Spec](https://img.shields.io/badge/agent_plugins-1.0-a9a4c4?style=flat-square&labelColor=1e1f20)](https://agent-plugins.org)
+[![Docs](https://img.shields.io/badge/docs-web-e0b567?style=flat-square&labelColor=1e1f20)](web/)
 
 A [UZE](https://github.com/hiukky/uze) marketplace of self-contained
 plugins — an engineering standard, git conventions, and a toolkit for
@@ -52,7 +53,8 @@ uze openspec@ai
 ## Layout
 
 ```
-marketplace.json    Catalog — the only file here that isn't a plugin
+marketplace.json    Catalog ┐ the only two things here
+web/                Docs    ┘ that aren't plugins
 <name>/
   plugin.json       Manifest (Agent Plugins 1.0)
   skills/           Capabilities, one SKILL.md each
@@ -61,6 +63,21 @@ marketplace.json    Catalog — the only file here that isn't a plugin
   resources/        Runtime files      │
   .mcp.json         MCP servers        ┘
 ```
+
+## Docs
+
+The site under [`web/`](web/) is the catalog with prose around it — what each
+plugin carries, what each skill does, and what makes it fire.
+
+```sh
+cd web && bun install && bun run dev
+```
+
+Its catalog is **generated from this repository** at build time —
+`marketplace.json` for the roster, each `plugin.json` for the manifest, each
+`SKILL.md`'s frontmatter for the capability and its invocation policy. A skill
+renamed here is renamed there on the next build, and no page can describe one
+that no longer exists.
 
 ---
 

@@ -1,0 +1,77 @@
+---
+title: openspec
+description: The engineering standard. OpenSpec for the change in flight, ADRs for decisions that outlive it, LikeC4 for how the system is organized
+---
+
+Three artifacts, each answering a different question, and none of them trying to
+answer the other two.
+
+| Artifact | Answers | Lives in |
+| --- | --- | --- |
+| **OpenSpec change** | *What are we changing right now?* | `openspec/changes/<name>/` |
+| **ADR** | *Why is the system this way?* | `docs/adr/NNN-*.md` |
+| **LikeC4 model** | *How is the system organized?* | `docs/architecture/likec4/` |
+
+<PluginHeader name="openspec" />
+
+## The flow
+
+A change starts as an OpenSpec change with four files: `proposal.md`,
+`specs/`, `design.md`, `tasks.md`. That is where the thinking happens and where
+it stays while the work is in flight.
+
+`design.md` carries a `## Candidate ADRs` note: decisions made along the way
+that *might* deserve a permanent record. They are not written as ADRs yet,
+because a decision that dissolves during implementation was never an
+architecture decision. It was a plan.
+
+When the change is archived, the `operations.archive` guidance formalizes the
+candidates that **held up through implementation** into real ADRs under
+`docs/adr/`. Nygard style: Context, Decision, Consequences. Numbered
+sequentially, never renumbered, never edited to say something else. A reversal
+becomes a new ADR and the old one gets `Status: Superseded by …`.
+
+LikeC4 sits alongside, modelling the system rather than the change: actors,
+systems, containers, components in `model.c4`, diagrams in `views.c4`, the
+element kinds in `specification.c4`. It is validated in CI-shaped commands
+(`arch:validate`) so the diagram cannot quietly stop matching the code.
+
+## The skills
+
+<PluginSkills name="openspec" />
+
+## Why `init` is user-only
+
+`init` is the one skill in this marketplace that declares
+`invoke: { model: false, user: true }`.
+
+It writes real scaffolding into a repository: runs `openspec init`, installs the
+`adr-driven` schema, rewrites `openspec/config.yaml`'s schema key, merges
+standing rules into its `context:` / `rules:` / `operations:` blocks, creates
+`docs/adr/` and `docs/architecture/likec4/`, and, for an existing project,
+*authors* a LikeC4 model by reading the codebase.
+
+Every step is idempotent and checks before writing. But it is still a
+deliberate, one-time act of adopting a standard, and "the user mentioned
+specs" is not consent to restructure their repository. So the model cannot
+reach for it; a person invokes it by name or it does not run.
+
+`adr`, by contrast, keeps the default policy on purpose: the whole value of an
+ADR habit is that decisions get recorded when they are made, and a skill that
+only fires when someone remembers to ask is a skill that records nothing.
+
+## Bundled resources
+
+The plugin ships the files `init` copies into a project. `openspec/schemas/adr-driven/`
+in an adopting project mirrors `openspec/resources/openspec/schema/` here. It
+is meant to track the plugin, so `init` overwrites it on every run and per-project
+edits do not survive. A project that needs schema changes forks the schema under
+a different name.
+
+<PluginResources name="openspec" />
+
+The LikeC4 starter is different: `specification.c4` is copied verbatim because
+it is generic, while `model.c4` and `views.c4` are **structural references
+only**. `init` authors those from the actual project: for an existing
+codebase, by reading entry points, services and dependencies rather than
+guessing at internals.
