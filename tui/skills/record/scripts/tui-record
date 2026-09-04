@@ -1,366 +1,1097 @@
-#!/usr/bin/env bash
-# tui-record — record a terminal UI as a demo video.
-#
-#   tui-record doctor
-#   tui-record take   --driver D --out FILE [opts] -- COMMAND...
-#   tui-record check  CAST [--forbid REGEX]...
-#   tui-record redact CAST --pattern REGEX [--pattern REGEX]...
-#   tui-record compress CAST --marks FILE [--span 1.5] [--head 0] [--tail 0.4]
-#   tui-record render CAST OUT.gif [--bg 0a0c0d] [--speed 1.4] [--font-size 14]
-#
-# Each subcommand is one stage of the pipeline and reads the previous
-# stage's file, so a take can be re-cut and re-rendered without recording
-# again. Keep the raw cast: it is the negative.
+#!/usr/bin/env python3
+"""tui-record — a terminal UI demo video, generated from a spec.
 
-set -uo pipefail
+The spec is the source of truth: it says what the video shows, in order, and
+everything needed to make it again — the sandbox it is recorded in, the
+fixtures the app acts on, and the numbers it is cut with. Nothing about a
+finished video lives in someone's shell history.
 
-die() { printf 'tui-record: %s\n' "$*" >&2; exit 1; }
-note() { printf '%s\n' "$*"; }
+  tui-record init      SPEC     scaffold a spec to fill in
+  tui-record validate  SPEC     parse it, resolve it, say what is wrong
+  tui-record beats     SPEC     the script, as prose, in order
+  tui-record doctor   [SPEC]    are the tools (and the spec's inputs) here
+  tui-record seed      SPEC     build the sandbox and its fixtures
+  tui-record probe     SPEC     run the app in the sandbox and inspect it live
+  tui-record run       SPEC     record, cut, leak-check, render, poster
+  tui-record recut     SPEC     cut and render the last take again
 
-need() { command -v "$1" >/dev/null 2>&1 || die "$1 is not installed (run: tui-record doctor)"; }
+  tui-record check    CAST      leak scan (also run inside `run`)
+  tui-record redact   CAST --pattern RE
+"""
 
-# ── doctor ───────────────────────────────────────────────────────────────
+from __future__ import annotations
 
-cmd_doctor() {
-  local missing=0
-  _probe() {
-    local bin="$1" what="$2" how="$3"
-    if command -v "$bin" >/dev/null 2>&1; then
-      printf '  ✓ %-10s %s\n' "$bin" "$($bin --version 2>&1 | head -1)"
-    else
-      printf '  ✕ %-10s %s\n     install: %s\n' "$bin" "$what" "$how"
-      missing=1
-    fi
-  }
-  note "tools:"
-  _probe tmux      "drives the recorded pty"        "apt install tmux"
-  _probe asciinema "records the cast"                "apt install asciinema  (ou: pipx install asciinema)"
-  _probe agg       "cast to GIF"                  "cargo install --git https://github.com/asciinema/agg  (the crates.io 'agg' is a different crate)"
-  _probe python3   "cast surgery"            "apt install python3"
-  _probe ffmpeg    "frame inspection, mp4"    "apt install ffmpeg"
-  note ""
-  if [ "$missing" -eq 0 ]; then
-    note "all set."
-  else
-    note "without agg you can still record and publish the .cast; without tmux/asciinema you cannot record at all."
-    return 1
-  fi
-}
+import argparse
+import json
+import os
+import random
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
 
-# ── take ─────────────────────────────────────────────────────────────────
 
-cmd_take() {
-  local driver="" out="" cols=140 rows=36 retries=3 settle=8 session=tuirec title=""
-  local marks="" keep_raw=1 reset_cmd=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --driver)   driver="$2"; shift 2 ;;
-      --out)      out="$2"; shift 2 ;;
-      --cols)     cols="$2"; shift 2 ;;
-      --rows)     rows="$2"; shift 2 ;;
-      --retries)  retries="$2"; shift 2 ;;
-      --settle)   settle="$2"; shift 2 ;;
-      --session)  session="$2"; shift 2 ;;
-      --title)    title="$2"; shift 2 ;;
-      --marks)    marks="$2"; shift 2 ;;
-      --no-raw)   keep_raw=0; shift ;;
-      --reset)    reset_cmd="$2"; shift 2 ;;
-      --)         shift; break ;;
-      *)          die "unknown take option: $1" ;;
-    esac
-  done
-  [ -n "$driver" ] || die "take needs --driver"
-  [ -n "$out" ] || die "take needs --out"
-  [ $# -gt 0 ] || die "take needs the command to record, after --"
-  [ -x "$driver" ] || die "driver is not executable: $driver"
-  need tmux; need asciinema
-  : "${marks:=${out%.cast}.marks}"
+def say(message: str) -> None:
+    print(f"\033[38;5;114m▸\033[0m {message}")
 
-  # The command is handed over through a launcher file instead of being
-  # quoted into tmux's command string, which asciinema would then re-quote
-  # into a shell of its own: two levels of quoting nobody wins.
-  local launcher; launcher=$(mktemp "${TMPDIR:-/tmp}/tui-record-launch.XXXXXX")
-  { printf '#!/usr/bin/env bash\nexec '; printf '%q ' "$@"; printf '\n'; } > "$launcher"
-  chmod +x "$launcher"
-  trap 'rm -f "$launcher"' RETURN
 
-  local attempt
-  for attempt in $(seq 1 "$retries"); do
-    [ -n "$reset_cmd" ] && { sh -c "$reset_cmd" || die "--reset command failed"; }
-    tmux kill-session -t "$session" 2>/dev/null
-    rm -f "$out"
-    tmux new-session -d -s "$session" -x "$cols" -y "$rows" \
-      "asciinema rec -q --overwrite -e TERM ${title:+-t $(printf %q "$title")} \
-         -c $(printf %q "$launcher") $(printf %q "$out"); sleep 4"
+def warn(message: str) -> None:
+    print(f"\033[38;5;179m!\033[0m {message}", file=sys.stderr)
 
-    sleep "$settle"
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-      note "take $attempt: the terminal died while the app was starting — retrying"
-      continue
-    fi
 
-    if ! TUI_SESSION="$session" TUI_MARKS="$marks" "$driver"; then
-      note "take $attempt: a beat was lost — retrying"
-      tmux kill-session -t "$session" 2>/dev/null
-      continue
-    fi
+def die(message: str, code: int = 1):
+    print(f"tui-record: {message}", file=sys.stderr)
+    raise SystemExit(code)
 
-    # asciinema só fecha o arquivo ao sair, e o pane ainda vive alguns
-    # segundos depois disso.
-    local _
-    for _ in $(seq 1 25); do
-      [ -s "$out" ] && ! tmux has-session -t "$session" 2>/dev/null && break
-      sleep 1
-    done
-    if [ -s "$out" ]; then
-      [ "$keep_raw" -eq 1 ] && cp "$out" "${out%.cast}.raw.cast"
-      note "take $attempt: recorded ($(cast_duration "$out")s)"
-      return 0
-    fi
-    note "take $attempt: no cast came out — retrying"
-  done
-  die "all $retries attempts failed"
-}
 
-cast_duration() {
-  python3 -c '
-import json, sys
-lines = open(sys.argv[1]).read().splitlines()
-print(f"{json.loads(lines[-1])[0]:.0f}" if len(lines) > 1 else "0")
-' "$1"
-}
+# ── the spec ─────────────────────────────────────────────────────────────
 
-# ── check ────────────────────────────────────────────────────────────────
+@dataclass
+class Spec:
+    path: Path
+    data: dict
+    root: Path                       # the project the spec belongs to
 
-cmd_check() {
-  local cast="${1:-}"; shift || true
-  [ -f "$cast" ] || die "check needs an existing cast"
-  local extra=()
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --forbid) extra+=("$2"); shift 2 ;;
-      *) die "unknown check option: $1" ;;
-    esac
-  done
-  python3 - "$cast" "$USER" "$HOME" "$(hostname 2>/dev/null || echo localhost)" "${extra[@]+"${extra[@]}"}" <<'PY'
-import json, re, sys
+    @property
+    def vars(self) -> dict:
+        """What any string in a spec may reference as {name}."""
+        sandbox = self.data.get("sandbox", {})
+        sandbox_root = os.path.expanduser(sandbox.get("root", "~/.tui-demo"))
+        return {
+            "project": str(self.root),
+            "root": sandbox_root,
+            "home": f"{sandbox_root}/home",
+            "runtime": f"{sandbox_root}/run",
+            "fixtures": os.path.expanduser(sandbox.get("fixtures", "/tmp/demos")),
+        }
 
-cast, user, home, host, *extra = sys.argv[1:]
-lines = open(cast, encoding="utf-8", errors="replace").read().splitlines()
-header = json.loads(lines[0])
-body = "\n".join(lines[1:])
+    def resolve(self, value):
+        if isinstance(value, str):
+            # Only the placeholders this spec defines are substituted, by
+            # name: a fixture's content is often code, and `str.format` would
+            # take `fn main() {}` for a placeholder and fail.
+            def swap(match):
+                return self.vars.get(match.group(1), match.group(0))
+            return os.path.expanduser(
+                re.sub(r"\{([a-z_]+)\}", swap, value))
+        if isinstance(value, list):
+            return [self.resolve(item) for item in value]
+        if isinstance(value, dict):
+            return {key: self.resolve(item) for key, item in value.items()}
+        return value
 
-print(f"size      : {header.get('width')}x{header.get('height')}")
-print(f"duration  : {json.loads(lines[-1])[0]:.0f}s over {len(lines) - 1} events")
-print(f"env kept  : {header.get('env', {})}")
+    @property
+    def video(self) -> dict:
+        return self.data.get("video", {})
 
-# Anything that identifies the machine or the account is a leak: a video is
-# published, and a terminal shows more of a home directory than anyone means
-# to share.
-patterns = [
-    ("username", re.escape(user)),
-    ("home", re.escape(home)),
-    ("hostname", re.escape(host)),
+    @property
+    def sandbox(self) -> dict:
+        return self.data.get("sandbox", {})
+
+    @property
+    def fixtures(self) -> list:
+        return self.data.get("fixtures") or self.data.get("fixture") or []
+
+    @property
+    def beats(self) -> list:
+        return self.data.get("beats") or self.data.get("beat") or []
+
+    @property
+    def cast(self) -> Path:
+        return Path(self.resolve(self.video.get("cast", "{root}/take.cast")))
+
+    def out_path(self, key: str) -> Path | None:
+        value = self.video.get(key)
+        if not value:
+            return None
+        path = Path(self.resolve(value))
+        return path if path.is_absolute() else self.root / path
+
+    def env(self) -> dict:
+        """Built, never inherited: an inherited variable is how a recording
+        ends up with somebody's name in it."""
+        path = self.resolve(self.sandbox.get("path", [
+            "{home}/.local/bin", "{home}/bin", "/usr/local/bin", "/usr/bin", "/bin",
+        ]))
+        env = {
+            "HOME": self.vars["home"],
+            "XDG_RUNTIME_DIR": self.vars["runtime"],
+            "PATH": ":".join(path),
+            "TERM": "xterm-256color",
+            "LANG": "C.UTF-8",
+        }
+        if shell := self.sandbox.get("shell"):
+            env["SHELL"] = self.resolve(shell)
+        env.update({k: self.resolve(v) for k, v in self.sandbox.get("env", {}).items()})
+        return env
+
+
+SPEC_NAMES = ("demo.yml", "demo.yaml", "demo.toml", "video.yml", "spec.yml")
+
+
+def parse_spec(path: Path) -> dict:
+    """YAML or TOML, by extension.
+
+    YAML reads better for this shape — a list of beats is a list of small
+    maps, and a fixture's content wants a block scalar — so it is the format
+    the tool writes. TOML is accepted because its parser is in the standard
+    library, which is the right answer when a machine has no PyYAML."""
+    text = path.read_text()
+    if path.suffix in (".yml", ".yaml"):
+        try:
+            import yaml
+        except ImportError:
+            die("this spec is YAML and PyYAML is not installed "
+                "(pip install pyyaml, or write the spec as .toml)")
+        try:
+            return yaml.safe_load(text) or {}
+        except yaml.YAMLError as error:
+            die(f"{path}: {error}")
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        die(f"{path}: {error}")
+
+
+def load_spec(argument: str) -> Spec:
+    # Absolute from the start: a relative path makes the walk up to the
+    # project root stop at the first "." and {project} resolve to the spec's
+    # own directory.
+    path = Path(argument).expanduser().resolve()
+    if path.is_dir():
+        for name in SPEC_NAMES:
+            if (path / name).is_file():
+                path = path / name
+                break
+    if not path.is_file():
+        die(f"no spec at {argument}")
+    data = parse_spec(path)
+    root, probe = path.parent, path.parent
+    while probe != probe.parent:
+        if (probe / ".git").exists():
+            root = probe
+            break
+        probe = probe.parent
+    return Spec(path=path, data=data, root=root)
+
+
+# ── the terminal under the recording ─────────────────────────────────────
+
+@dataclass
+class Screen:
+    """One tmux session holding the recorded pty, and the questions a beat
+    asks of it. Coordinates are read from the frame that is on screen now —
+    never typed in advance, because strips and sidebars move."""
+
+    session: str
+    sidebar: int = 31
+
+    def pane(self) -> str:
+        return subprocess.run(["tmux", "capture-pane", "-t", self.session, "-p"],
+                              capture_output=True, text=True).stdout
+
+    def alive(self) -> bool:
+        return subprocess.run(["tmux", "has-session", "-t", self.session],
+                              capture_output=True).returncode == 0
+
+    def band(self, where: str) -> tuple[int, int]:
+        return {"sidebar": (1, self.sidebar),
+                "pane": (self.sidebar + 1, 9999)}.get(where, (1, 9999))
+
+    def find(self, text: str, where: str = "screen", occurrence="first"):
+        """(row, col), 1-based; (0, 0) when absent.
+
+        The band is what keeps a sidebar entry apart from a pane that says the
+        same thing — an unbanded search picks whichever comes first, and
+        clicking the wrong one is a silent no-op."""
+        low, high = self.band(where)
+        rows = self.pane().splitlines()
+        if where == "strip":
+            rows = rows[:1]
+        hits = []
+        for row, line in enumerate(rows, 1):
+            start = low - 1
+            while (col := line.find(text, start, high)) != -1:
+                hits.append((row, col + 1))
+                start = col + 1
+        if not hits:
+            return (0, 0)
+        if occurrence == "last":
+            return hits[-1]
+        if isinstance(occurrence, int):
+            return hits[occurrence - 1] if 0 < occurrence <= len(hits) else (0, 0)
+        return hits[0]
+
+    def find_glyph(self, glyphs: str, where: str = "screen"):
+        low, high = self.band(where)
+        for row, line in enumerate(self.pane().splitlines(), 1):
+            for col, char in enumerate(line[low - 1:high], low):
+                if char in glyphs:
+                    return (row, col)
+        return (0, 0)
+
+    def shows(self, pattern: str, where: str = "screen") -> bool:
+        haystack = ("".join(self.pane().splitlines()[:1]) if where == "strip"
+                    else self.pane())
+        return re.search(pattern, haystack) is not None
+
+    def send(self, *args: str) -> None:
+        subprocess.run(["tmux", "send-keys", "-t", self.session, *args],
+                       capture_output=True)
+
+    def key(self, name: str) -> None:
+        self.send(name)
+
+    def literal(self, text: str) -> None:
+        self.send("-l", text)
+
+    def mouse(self, col: int, row: int, button: int = 0) -> None:
+        # SGR (1006) press/release straight into the pty: an app that enabled
+        # mouse reporting cannot tell this from a hand.
+        self.literal(f"\033[<{button};{col};{row}M")
+        time.sleep(0.07)
+        self.literal(f"\033[<{button};{col};{row}m")
+
+    def type_text(self, text: str, cadence=(0.026, 0.066)) -> None:
+        low, high = cadence
+        for char in text:
+            self.literal(char)
+            delay = random.uniform(low, high)
+            if char == " " and random.random() < 0.15:
+                delay = 0.18          # a person pauses; a machine does not
+            time.sleep(delay)
+
+
+# ── performing the beats ─────────────────────────────────────────────────
+
+class BeatFailure(Exception):
+    """A gesture that did not happen. The take is spoiled: the next beat would
+    act on whatever has focus, and the video would look like the app
+    misbehaving rather than like a miss."""
+
+
+ACTIONS = ("type", "key", "click", "dclick", "rclick", "wait", "shell", "end")
+
+
+@dataclass
+class Take:
+    spec: Spec
+    screen: Screen
+    marks: list = field(default_factory=list)
+
+    def mark(self, name: str) -> None:
+        self.marks.append((name, time.time()))
+
+    @staticmethod
+    def action_of(beat: dict) -> str:
+        for name in ACTIONS:
+            if name in beat:
+                return name
+        return "hold"
+
+    def perform(self, index: int, beat: dict) -> None:
+        label = beat.get("say", f"beat {index}")
+        action = self.action_of(beat)
+        handler = getattr(self, f"_{action}", None)
+        if handler is None:
+            raise BeatFailure(f"{label}: unknown action {action!r}")
+        handler(beat, label)
+        if expect := beat.get("expect"):
+            self._await(expect, beat.get("expect_in", "screen"),
+                        float(beat.get("expect_timeout", 12)), label)
+        if (refuse := beat.get("refuse")) and self.screen.shows(refuse):
+            raise BeatFailure(f"{label}: screen shows what it must not ({refuse!r})")
+        time.sleep(float(beat.get("pause", 0.8)))
+
+    def _await(self, pattern: str, where: str, timeout: float, label: str) -> None:
+        deadline = time.time() + timeout
+        while not self.screen.shows(pattern, where):
+            if time.time() > deadline:
+                raise BeatFailure(f"{label}: never showed {pattern!r}")
+            time.sleep(0.4)
+
+    def _target(self, beat: dict, label: str) -> tuple[int, int]:
+        where = beat.get("in", "screen")
+        occurrence = beat.get("occurrence", "first")
+        if glyphs := beat.get("glyph"):
+            row, col = self.screen.find_glyph(glyphs, where)
+        else:
+            text = beat.get(self.action_of(beat))
+            if not isinstance(text, str):
+                raise BeatFailure(f"{label}: nothing to aim at")
+            row, col = self.screen.find(text, where, occurrence)
+        if col <= 0:
+            raise BeatFailure(f"{label}: target is not on screen")
+        # Only ever offset a real hit: "not found" is 0, and 0 + an offset is
+        # the top-left corner, which in most TUIs is a different screen.
+        return row, col + int(beat.get("offset", 0))
+
+    # actions ------------------------------------------------------------
+    def _type(self, beat: dict, label: str) -> None:
+        # `clear` empties a field first — "all" for a length nobody can know
+        # in advance, like a label the app generated.
+        if clear := beat.get("clear"):
+            count = 32 if clear == "all" else int(clear)
+            for _ in range(count):
+                self.screen.key("BSpace")
+                time.sleep(0.045)
+            time.sleep(0.2)
+        self.screen.type_text(beat["type"])
+        if beat.get("submit", True):
+            time.sleep(0.4)
+            self.screen.key("Enter")
+
+    def _key(self, beat: dict, label: str) -> None:
+        keys = [beat["key"]] if isinstance(beat["key"], str) else beat["key"]
+        for name in keys:
+            self.screen.key(name)
+            time.sleep(float(beat.get("every", 0.06)))
+
+    def _click(self, beat: dict, label: str) -> None:
+        row, col = self._target(beat, label)
+        self.screen.mouse(col, row)
+
+    def _rclick(self, beat: dict, label: str) -> None:
+        row, col = self._target(beat, label)
+        self.screen.mouse(col, row, button=2)
+
+    def _dclick(self, beat: dict, label: str) -> None:
+        # Selecting redraws the strip, so the column is read again once the
+        # selection settles: a double-click across that redraw lands on
+        # nothing, and whatever is typed next goes to the pane.
+        row, col = self._target(beat, label)
+        self.screen.mouse(col, row)
+        time.sleep(0.5)
+        row, col = self._target(beat, label)
+        self.screen.mouse(col, row)
+        time.sleep(0.11)
+        self.screen.mouse(col, row)
+
+    def _shell(self, beat: dict, label: str) -> None:
+        subprocess.run(self.spec.resolve(beat["shell"]), shell=True, check=False)
+
+    def _hold(self, beat: dict, label: str) -> None:
+        return
+
+    def _end(self, beat: dict, label: str) -> None:
+        # Marked before the key: the cut stops here, so the app's own exit —
+        # the write that blanks the screen — never reaches the video.
+        self.mark("driver_end")
+        time.sleep(0.5)
+        self.screen.key(beat["end"] if isinstance(beat["end"], str) else "C-q")
+        time.sleep(2.0)
+
+    def _wait(self, beat: dict, label: str) -> None:
+        """Real latency, bracketed with marks so the cut squeezes exactly this
+        stretch and nothing else."""
+        name = beat.get("name", f"wait{len(self.marks)}")
+        timeout = float(beat.get("timeout", 120))
+        collapse = beat.get("collapse", True)
+        if collapse:
+            self.mark(f"{name}_start")
+        deadline = time.time() + timeout
+        while not self._condition(beat):
+            if time.time() > deadline:
+                if collapse:
+                    self.mark(f"{name}_end")
+                raise BeatFailure(f"{label}: waited {timeout:.0f}s, it never happened")
+            time.sleep(1)
+        time.sleep(float(beat.get("settle", 1.0)))
+        if collapse:
+            self.mark(f"{name}_end")
+
+    def _condition(self, beat: dict) -> bool:
+        kind, until = beat["wait"], self.spec.resolve(beat.get("until", ""))
+        if kind == "screen":
+            return self.screen.shows(until, beat.get("in", "screen"))
+        if kind == "file":
+            return Path(until).exists()
+        if kind == "shell":
+            return subprocess.run(until, shell=True, capture_output=True).returncode == 0
+        raise BeatFailure(f"unknown wait kind {kind!r}")
+
+
+# ── sandbox ──────────────────────────────────────────────────────────────
+
+def cmd_seed(spec: Spec, args) -> int:
+    """Everything a recording needs that is not the app: a HOME of its own,
+    its tools, its fixtures. Idempotent — a wiped /tmp is a re-run, not an
+    archaeology exercise."""
+    home = Path(spec.vars["home"])
+    say(f"sandbox at {spec.vars['root']}")
+    for directory in (home, Path(spec.vars["runtime"]), home / "bin"):
+        directory.mkdir(parents=True, exist_ok=True)
+    os.chmod(spec.vars["runtime"], 0o700)
+
+    for entry in spec.sandbox.get("write", []):
+        target = Path(spec.resolve(entry["path"]))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(spec.resolve(entry["text"]))
+        if entry.get("executable"):
+            os.chmod(target, 0o755)
+        say(f"wrote {target.name}")
+
+    for name in spec.sandbox.get("binaries", []):
+        real = shutil.which(name)
+        if real and "/.uze/shims/" in real:      # never a shim: it would point
+            real = None                          # the sandbox back at the real home
+        if not real:
+            candidate = Path.home() / ".local/bin" / name
+            real = str(candidate) if candidate.exists() else None
+        if real:
+            link = home / "bin" / name
+            link.unlink(missing_ok=True)
+            link.symlink_to(Path(real).resolve())
+        else:
+            warn(f"{name} not on PATH — the app will see it as missing")
+
+    # Symlinks, never copies: nothing is duplicated on disk, and deleting the
+    # link ends the grant.
+    for entry in spec.sandbox.get("link", []):
+        source = Path(os.path.expanduser(spec.resolve(entry["from"])))
+        target = Path(spec.resolve(entry["to"]))
+        if not source.exists():
+            if not entry.get("optional"):
+                warn(f"missing {source} — the take records whatever the app does without it")
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.unlink(missing_ok=True)
+        target.symlink_to(source)
+        say(f"linked {target.name}")
+
+    for entry in spec.sandbox.get("copy", []):
+        source = Path(os.path.expanduser(spec.resolve(entry["from"])))
+        if source.exists():
+            target = Path(spec.resolve(entry["to"]))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(source, target)
+
+    for command in spec.sandbox.get("provision", []):
+        resolved = spec.resolve(command)
+        say(f"provision: {resolved}")
+        result = subprocess.run(resolved, shell=True, env=spec.env(),
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            tail = (result.stderr or result.stdout).strip().splitlines()
+            warn(tail[-1] if tail else "provision step failed")
+
+    # After provisioning on purpose: these files are often written by the tool
+    # that was just provisioned, and this only adds keys to them.
+    for entry in spec.sandbox.get("patch_json", []):
+        target = Path(spec.resolve(entry["path"]))
+        current = {}
+        if target.exists():
+            try:
+                current = json.loads(target.read_text())
+            except json.JSONDecodeError:
+                current = {}
+        current.update(json.loads(spec.resolve(entry["merge"])))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(current, indent=2))
+        say(f"patched {target.name}")
+
+    seed_fixtures(spec)
+    say(f"ready — record with: tui-record run {spec.path}")
+    return 0
+
+
+def seed_fixtures(spec: Spec) -> None:
+    """Repositories with a believable past. An empty repo reads as a test
+    fixture; a handful of dated commits reads as a project."""
+    if not spec.fixtures:
+        return
+    base = Path(spec.vars["fixtures"])
+    author = spec.sandbox.get("author", "Ada Lovelace")
+    email = spec.sandbox.get("author_email", "ada@demo.dev")
+    env = spec.env() | {"GIT_AUTHOR_NAME": author, "GIT_AUTHOR_EMAIL": email,
+                        "GIT_COMMITTER_NAME": author, "GIT_COMMITTER_EMAIL": email}
+    for fixture in spec.fixtures:
+        repo = base / fixture["name"]
+        say(f"fixture {repo}")
+        shutil.rmtree(repo, ignore_errors=True)
+        repo.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", "-b", "main", "."], cwd=repo, env=env)
+        for commit in (fixture.get("commits") or fixture.get("commit") or []):
+            for name, text in commit.get("files", {}).items():
+                path = repo / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(spec.resolve(text).rstrip("\n") + "\n")
+            # Backdated, and always in the past: "in the future" in a
+            # timeline is a tell.
+            when = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(
+                time.time() - float(commit.get("days_ago", 1)) * 86400))
+            subprocess.run(["git", "add", "-A"], cwd=repo, env=env, capture_output=True)
+            subprocess.run(["git", "commit", "-qm", commit["message"]], cwd=repo,
+                           env=env | {"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+                           capture_output=True)
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env=env,
+                              capture_output=True, text=True).stdout.strip()
+        (Path(spec.vars["root"]) / f"base-{fixture['name']}.sha").write_text(head + "\n")
+
+
+def reset_sandbox(spec: Spec) -> None:
+    """Back to the state every take assumes. Three attempts in, leftovers from
+    the first are what make the third look wrong."""
+    subprocess.run(["tmux", "kill-session", "-t", session_name(spec)], capture_output=True)
+    for command in spec.sandbox.get("reset", []):
+        subprocess.run(spec.resolve(command), shell=True, capture_output=True)
+    base = Path(spec.vars["fixtures"])
+    for fixture in spec.fixtures:
+        repo = base / fixture["name"]
+        if not repo.exists():
+            die(f"fixture {repo} is gone (a /tmp wipe does that) — "
+                f"rebuild it: tui-record seed {spec.path}")
+        listing = subprocess.run(["git", "-C", str(repo), "worktree", "list"],
+                                 capture_output=True, text=True).stdout.splitlines()[1:]
+        for line in listing:
+            subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force",
+                            line.split()[0]], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "worktree", "prune"], capture_output=True)
+        pattern = spec.sandbox.get("scratch_branches", "agent/*")
+        branches = subprocess.run(["git", "-C", str(repo), "branch", "--list", pattern],
+                                  capture_output=True, text=True).stdout.split()
+        for branch in (b for b in branches if b != "*"):
+            subprocess.run(["git", "-C", str(repo), "branch", "-D", branch], capture_output=True)
+        sha_file = Path(spec.vars["root"]) / f"base-{fixture['name']}.sha"
+        if sha_file.exists():
+            subprocess.run(["git", "-C", str(repo), "reset", "-q", "--hard",
+                            sha_file.read_text().strip()], capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "checkout", "-q", "main"], capture_output=True)
+    for leftover in spec.sandbox.get("clear", []):
+        shutil.rmtree(Path(spec.resolve(leftover)), ignore_errors=True)
+
+
+def session_name(spec: Spec) -> str:
+    return spec.video.get("session", "tuirec")
+
+
+def launch(spec: Spec, cast: Path | None) -> Screen:
+    """tmux holds the pty and asciinema records inside it, so tmux's own
+    status bar never reaches the video."""
+    session = session_name(spec)
+    subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
+    env = spec.env()
+    command = spec.resolve(spec.sandbox["command"])
+    cwd = spec.resolve(spec.sandbox.get("cwd", "{fixtures}"))
+
+    # Handed over through a launcher file rather than quoted into tmux's
+    # command string, which asciinema would then re-quote into a shell of its
+    # own: two levels of quoting nobody wins.
+    launcher = Path(spec.vars["root"]) / ".launch.sh"
+    launcher.parent.mkdir(parents=True, exist_ok=True)
+    assignments = " \\\n  ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
+    inner = " ".join(shlex.quote(part) for part in command)
+    launcher.write_text(f"#!/usr/bin/env bash\ncd {shlex.quote(cwd)}\nexec env -i \\\n"
+                        f"  {assignments} \\\n  {inner}\n")
+    os.chmod(launcher, 0o755)
+
+    if cast:
+        cast.parent.mkdir(parents=True, exist_ok=True)
+        cast.unlink(missing_ok=True)
+        title = shlex.quote(spec.video.get("title", "demo"))
+        outer = (f"asciinema rec -q --overwrite -e TERM -t {title} "
+                 f"-c {shlex.quote(str(launcher))} {shlex.quote(str(cast))}; sleep 4")
+    else:
+        outer = f"{shlex.quote(str(launcher))}; sleep 3600"
+
+    subprocess.run(["tmux", "new-session", "-d", "-s", session,
+                    "-x", str(spec.video.get("cols", 140)),
+                    "-y", str(spec.video.get("rows", 36)), outer], check=True)
+    return Screen(session, sidebar=int(spec.video.get("sidebar", 31)))
+
+
+# ── the pipeline ─────────────────────────────────────────────────────────
+
+def cmd_run(spec: Spec, args) -> int:
+    need("tmux", "asciinema")
+    cast, attempts = spec.cast, int(args.retries)
+    for attempt in range(1, attempts + 1):
+        reset_sandbox(spec)
+        screen = launch(spec, cast)
+        time.sleep(float(spec.video.get("settle", 8)))
+        if not screen.alive():
+            say(f"take {attempt}: the terminal died while the app was starting — retrying")
+            continue
+        take = Take(spec, screen)
+        take.mark("driver_start")
+        try:
+            for index, beat in enumerate(spec.beats, 1):
+                if args.verbose:
+                    say(f"  {index:2}. {beat.get('say', Take.action_of(beat))}")
+                take.perform(index, beat)
+        except BeatFailure as failure:
+            say(f"take {attempt}: {failure} — retrying")
+            subprocess.run(["tmux", "kill-session", "-t", screen.session], capture_output=True)
+            continue
+        for _ in range(25):                       # asciinema writes on exit
+            if cast.exists() and cast.stat().st_size and not screen.alive():
+                break
+            time.sleep(1)
+        if not (cast.exists() and cast.stat().st_size):
+            say(f"take {attempt}: no cast came out — retrying")
+            continue
+        shutil.copy(cast, cast.with_suffix(".raw.cast"))   # the negative
+        cast.with_suffix(".marks").write_text(
+            "".join(f"{name} {when}\n" for name, when in take.marks))
+        say(f"take {attempt}: recorded ({cast_duration(cast):.0f}s)")
+        return finish(spec)
+    die(f"all {attempts} attempts failed")
+
+
+def cmd_recut(spec: Spec, args) -> int:
+    raw = spec.cast.with_suffix(".raw.cast")
+    if not raw.exists():
+        die(f"no raw take at {raw} — record one first")
+    shutil.copy(raw, spec.cast)
+    return finish(spec)
+
+
+def finish(spec: Spec) -> int:
+    cast = spec.cast
+    compress(cast, cast.with_suffix(".marks"),
+             float(spec.video.get("wait_collapse", 1.5)))
+    if leaks(cast, spec.video.get("forbid", [])):
+        die("the cast still shows something identifying — redact before publishing", code=2)
+    produced = {}
+    if out := spec.out_path("out"):
+        render(spec, cast, out)
+        produced["out"] = out
+        poster = spec.out_path("poster")
+        if poster:
+            at = poster_time(spec, cast)
+            if at is not None:
+                make_poster(out, poster, at)
+                produced["poster"] = poster
+    publish(spec, produced)
+    return 0
+
+
+def publish(spec: Spec, produced: dict) -> None:
+    """The artifact lives beside its spec; a site or a docs tree gets a copy.
+
+    Declared rather than done by hand, so the two never drift into being
+    different videos."""
+    for entry in spec.video.get("publish", []):
+        source = produced.get(entry.get("from", "out"))
+        if not source:
+            continue
+        target = Path(spec.resolve(entry["to"]))
+        if not target.is_absolute():
+            target = spec.root / target
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(source, target)
+        say(f"published {target}")
+
+
+def cast_lines(cast: Path) -> list[str]:
+    return cast.read_text(errors="replace").splitlines()
+
+
+def cast_duration(cast: Path) -> float:
+    lines = cast_lines(cast)
+    return json.loads(lines[-1])[0] if len(lines) > 1 else 0.0
+
+
+def compress(cast: Path, marks_file: Path, span_target: float) -> None:
+    """Rescales time; never deletes an event before the end.
+
+    Dropping the startup events removes the terminal's first full paint, and
+    the player then draws the rest of the take onto a blank screen — panels
+    missing that the live app clearly draws. Trailing events are the
+    exception: nothing after them is ever seen, and the app's exit is the
+    write that blanks the screen, which a looping GIF shows at both ends."""
+    lines = cast_lines(cast)
+    before = json.loads(lines[-1])[0]
+    header = json.loads(lines[0])
+    t0 = float(header["timestamp"])
+
+    marks = {}
+    if marks_file.exists():
+        for line in marks_file.read_text().splitlines():
+            parts = line.split()
+            if len(parts) == 2:
+                marks[parts[0]] = float(parts[1]) - t0
+
+    # `driver_start`/`driver_end` bracket the whole take, not a wait: pairing
+    # them would collapse the entire video into one beat.
+    spans = sorted((marks[key], marks[key[:-6] + "_end"]) for key in marks
+                   if key.endswith("_start") and not key.startswith("driver_")
+                   and key[:-6] + "_end" in marks)
+    head = max(marks.get("driver_start", 0.0) - 0.6, 0.0)
+
+    ends = []
+    if "driver_end" in marks:
+        ends.append(marks["driver_end"] + 0.4)
+    for line in reversed(lines[1:]):
+        when, _, data = json.loads(line)
+        if "[?1049l" in data:
+            ends.append(when - 0.01)
+            break
+    cut = min(ends) if ends else None
+
+    def squeeze(t: float) -> float:
+        out = t
+        for start, end in spans:
+            if t <= start:
+                break
+            length = end - start
+            if length <= span_target:
+                continue
+            out -= ((t - start) * (1 - span_target / length) if t < end
+                    else length - span_target)
+        return out
+
+    head_at = squeeze(head)
+    kept, dropped = [lines[0]], 0
+    for line in lines[1:]:
+        when, kind, data = json.loads(line)
+        if cut is not None and when > cut:
+            dropped += 1
+            continue
+        moved = head_at if when < head else squeeze(when)
+        kept.append(json.dumps([round(max(moved - head_at, 0.0), 6), kind, data]))
+    cast.write_text("\n".join(kept) + "\n")
+
+    for start, end in spans:
+        say(f"wait of {end - start:.1f}s → {min(end - start, span_target):.1f}s")
+    say(f"startup of {head:.1f}s collapsed"
+        + (f", {dropped} trailing events cut" if dropped else ""))
+    say(f"{before:.0f}s → {cast_duration(cast):.0f}s")
+
+
+LEAK_PATTERNS = [
     ("session url", r"session_[A-Za-z0-9]{16,}"),
     ("sk- style token", r"sk-[A-Za-z0-9_\-]{16,}"),
     ("bearer", r"[Bb]earer\s+[A-Za-z0-9._\-]{16,}"),
     ("private key", r"BEGIN [A-Z ]*PRIVATE KEY"),
     ("private ip", r"\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+\b"),
 ]
-patterns += [(f"--forbid {p}", p) for p in extra]
 
-worst = 0
-for label, pattern in patterns:
-    hits = len(re.findall(pattern, body))
-    if hits:
-        worst = 1
-        print(f"  ✕ {label}: {hits} occurrence(s)")
-print("  ✓ nothing identifying found" if not worst else
-      "\nredact before publishing: tui-record redact <cast> --pattern '<regex>'")
-sys.exit(worst)
-PY
-}
 
-# ── redact ───────────────────────────────────────────────────────────────
+def leaks(cast: Path, extra: list) -> bool:
+    """Not advisory: a video is published, and a terminal shows more of a home
+    directory than anyone means to share."""
+    lines = cast_lines(cast)
+    header = json.loads(lines[0])
+    body = "\n".join(lines[1:])
+    say(f"{header.get('width')}x{header.get('height')}, {cast_duration(cast):.0f}s "
+        f"over {len(lines) - 1} events, env {header.get('env', {})}")
+    patterns = [("username", re.escape(os.environ.get("USER", "\0"))),
+                ("home", re.escape(str(Path.home()))),
+                ("hostname", re.escape(os.uname().nodename))] + LEAK_PATTERNS
+    patterns += [(f"forbid {pattern}", pattern) for pattern in extra]
+    found = False
+    for label, pattern in patterns:
+        if hits := len(re.findall(pattern, body)):
+            found = True
+            print(f"  ✕ {label}: {hits} occurrence(s)")
+    print("  ✓ nothing identifying found" if not found else
+          "\n  redact with: tui-record redact <cast> --pattern '<regex>'")
+    return found
 
-cmd_redact() {
-  local cast="${1:-}"; shift || true
-  [ -f "$cast" ] || die "redact needs an existing cast"
-  local patterns=()
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --pattern) patterns+=("$2"); shift 2 ;;
-      *) die "unknown redact option: $1" ;;
-    esac
-  done
-  [ "${#patterns[@]}" -gt 0 ] || die "redact needs at least one --pattern"
-  python3 - "$cast" "${patterns[@]}" <<'PY'
-import re, sys
 
-cast, *patterns = sys.argv[1:]
-text = open(cast, encoding="utf-8", errors="replace").read()
-# Same length, so nothing on screen reflows: a redaction that shortens a
-# string moves every glyph after it on that row.
-for pattern in patterns:
-    text, n = re.subn(pattern, lambda m: "x" * len(m.group(0)), text)
-    print(f"{pattern}: {n} substitution(s)")
-open(cast, "w", encoding="utf-8").write(text)
-PY
-}
+def render(spec: Spec, cast: Path, out: Path) -> None:
+    need("agg")
+    video = spec.video
+    palette = video.get("palette",
+                        "15181a,e06c75,98c379,e5c07b,61afef,c678dd,56b6c2,abb2bf,"
+                        "4b5263,f07178,b5e890,f0d399,7cc4ff,d7a3ea,7fdbd4,f2f4f6")
+    # The renderer paints the frame's padding in the theme background, so a
+    # background that is not the app's shows as a border in a colour it never
+    # uses.
+    theme = f"{video.get('background', '0a0c0d')},{video.get('foreground', 'e2e4e6')},{palette}"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        ["agg", "--theme", theme,
+         "--font-size", str(video.get("font_size", 14)),
+         "--speed", str(video.get("speed", 1.0)),
+         "--idle-time-limit", str(video.get("idle_limit", 1.5)),
+         str(cast), str(out)], capture_output=True, text=True)
+    if result.returncode != 0:
+        tail = (result.stderr or "?").strip().splitlines()
+        die("agg failed: " + (tail[-1] if tail else "?"))
+    say(f"{out} — {out.stat().st_size // 1024}K")
 
-# ── compress ─────────────────────────────────────────────────────────────
 
-cmd_compress() {
-  local cast="${1:-}"; shift || true
-  [ -f "$cast" ] || die "compress needs an existing cast"
-  local marks="" span=1.5 head=0.0 tail=0.4
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --marks) marks="$2"; shift 2 ;;
-      --span)  span="$2"; shift 2 ;;
-      --head)  head="$2"; shift 2 ;;
-      --tail)  tail="$2"; shift 2 ;;
-      *) die "unknown compress option: $1" ;;
-    esac
-  done
-  : "${marks:=${cast%.cast}.marks}"
-  [ -f "$marks" ] || die "no marks file at: $marks"
-  python3 - "$cast" "$marks" "$span" "$head" "$tail" <<'PY'
-import json, sys
+def poster_time(spec: Spec, cast: Path) -> float | None:
+    """When to freeze the still.
 
-cast_path, marks_path, span_target, head_target, tail_pad = sys.argv[1:6]
-span_target, head_target, tail_pad = float(span_target), float(head_target), float(tail_pad)
+    `poster_when` names what has to be on screen and survives a re-cut;
+    `poster_at` is the same answer in seconds, and stops being right the
+    moment the cut changes."""
+    speed = float(spec.video.get("speed", 1.0))
+    if pattern := spec.video.get("poster_when"):
+        for line in cast_lines(cast)[1:]:
+            when, _, data = json.loads(line)
+            if re.search(pattern, data):
+                return round(when / speed, 2)
+        warn(f"poster_when {pattern!r} never appears — no poster")
+        return None
+    if (at := spec.video.get("poster_at")) is not None:
+        return float(at)
+    return None
 
-lines = open(cast_path, encoding="utf-8", errors="replace").read().splitlines()
-header = json.loads(lines[0])
-t0 = float(header["timestamp"])
 
-marks = {}
-for line in open(marks_path):
-    parts = line.split()
-    if len(parts) == 2:
-        marks[parts[0]] = float(parts[1]) - t0
+def make_poster(gif: Path, poster: Path, at: float) -> None:
+    if not shutil.which("ffmpeg"):
+        warn("ffmpeg missing — no poster frame")
+        return
+    poster.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", str(at),
+                    "-i", str(gif), "-frames:v", "1", str(poster)], check=False)
+    say(f"{poster} (frame at {at:g}s)")
 
-# Every *_start/*_end pair is a stretch where the video was only waiting.
-# `driver_start`/`driver_end` are the take's own bounds, not a wait: pairing
-# them would squeeze the entire take into one span.
-spans = sorted(
-    (marks[k], marks[k[: -len("_start")] + "_end"])
-    for k in marks
-    if k.endswith("_start")
-    and k != "driver_start"
-    and k[: -len("_start")] + "_end" in marks
-)
-head = max(marks.get("driver_start", 0.0) - 0.6, 0.0)
 
-# Where the video ends. The app leaving the alternate screen is the last
-# thing worth showing: after it the pane is a bare shell, and a GIF loops,
-# so that tail reads as black at *both* ends. Trailing events can be cut
-# (unlike the startup ones) because nothing after them is ever drawn.
-def take_ends_at():
-    """Where the video ends: the driver's own mark, the app's exit, or both
-    — whichever comes first. The alternate-screen exit has to win a tie,
-    because that write is the one that blanks the screen, and a blank last
-    frame reads as a pause at *both* ends once the GIF loops."""
-    candidates = []
-    if "driver_end" in marks:
-        candidates.append(marks["driver_end"] + tail_pad)
-    for line in reversed(lines[1:]):
-        t, _, data = json.loads(line)
-        if "[?1049l" in data:
-            candidates.append(t - 0.01)
-            break
-    return min(candidates) if candidates else None
+# ── authoring aids ───────────────────────────────────────────────────────
 
-cut = take_ends_at()
+def cmd_probe(spec: Spec, args) -> int:
+    """The app, in its sandbox, with no recording — for writing a beat and
+    proving its selector before spending a take on it."""
+    need("tmux")
+    session = session_name(spec)
+    screen = Screen(session, sidebar=int(spec.video.get("sidebar", 31)))
+    if args.stop:
+        subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
+        return say("probe stopped") or 0
+    if not screen.alive():
+        if args.screen or args.find:
+            die(f"no probe running — start one: tui-record probe {spec.path}")
+        reset_sandbox(spec)
+        screen = launch(spec, cast=None)
+        time.sleep(float(spec.video.get("settle", 8)))
+        say(f"probe up in tmux session {session!r} — inspect it with:")
+        print(f"    tui-record probe {spec.path} --screen")
+        print(f"    tui-record probe {spec.path} --find 'Manage' --in sidebar")
+        print(f"    tui-record probe {spec.path} --stop")
+        return 0
+    if args.screen:
+        print(screen.pane())
+        return 0
+    if args.find:
+        for where in ([args.where] if args.where else ("screen", "sidebar", "pane", "strip")):
+            row, col = screen.find(args.find, where)
+            print(f"  {where:8} " + (f"row {row}, col {col}" if col else "not found"))
+        return 0
+    say(f"a probe is already running in {session!r}")
+    return 0
 
-def squeeze(t):
-    """t with every over-long wait span shrunk to span_target."""
-    out = t
-    for start, end in spans:
-        if t <= start:
-            break
-        length = end - start
-        if length <= span_target:
+
+def cmd_beats(spec: Spec, args) -> int:
+    """The script, as prose. This is the thing to edit first; the beats are
+    the performance of it."""
+    video = spec.video
+    print(f"{video.get('title', spec.path.stem)} — "
+          f"{video.get('cols', 140)}x{video.get('rows', 36)} at {video.get('speed', 1.0)}x "
+          f"→ {video.get('out', '(no output)')}")
+    print()
+    step = 0
+    for beat in spec.beats:
+        label = beat.get("say")
+        if not label:
             continue
-        out -= (t - start) * (1 - span_target / length) if t < end else length - span_target
-    return out
+        step += 1
+        action = Take.action_of(beat)
+        if action == "wait":
+            detail = f"wait for {beat.get('wait')} (≤{beat.get('timeout', 120)}s, collapsed)"
+        elif action == "type":
+            detail = f'type "{beat["type"]}"'
+        elif action in ("click", "dclick", "rclick"):
+            aim = beat.get(action) or beat.get("glyph")
+            detail = f"{action} {aim!r} in {beat.get('in', 'screen')}"
+        elif action == "end":
+            detail = f"quit ({beat['end']})"
+        else:
+            detail = action
+        print(f"{step:3}. {label}\n     {detail}")
+    return 0
 
-# The startup collapses to a single instant. Its events are KEPT, never
-# dropped: they carry the terminal's first full paint, and a player that
-# never receives it draws the whole take onto a blank screen.
-head_at = squeeze(head)
 
-def remap(t):
-    return head_target if t < head else squeeze(t) - head_at + head_target
+def cmd_validate(spec: Spec, args) -> int:
+    problems = []
+    if not spec.sandbox.get("command"):
+        problems.append("[sandbox] has no command — nothing to record")
+    if not spec.beats:
+        problems.append("no [[beat]]: the video would be a still")
+    elif not any("end" in beat for beat in spec.beats):
+        problems.append("no beat ends the take — asciinema writes nothing "
+                        "if the recorded app never exits")
+    for index, beat in enumerate(spec.beats, 1):
+        action = Take.action_of(beat)
+        label = beat.get("say", f"beat {index}")
+        if action in ("click", "dclick", "rclick"):
+            if not (beat.get(action) or beat.get("glyph")):
+                problems.append(f"beat {index} ({label}): {action} has nothing to aim at")
+            elif not beat.get("expect"):
+                warn(f"beat {index} ({label}): no `expect` — a miss here would be silent")
+        if action == "wait" and "until" not in beat:
+            problems.append(f"beat {index} ({label}): wait has no `until`")
+    fixtures = Path(spec.vars["fixtures"])
+    for fixture in spec.fixtures:
+        if not (fixtures / fixture["name"]).exists():
+            warn(f"fixture {fixture['name']} is not built — run: tui-record seed {spec.path}")
+    for problem in problems:
+        print(f"  ✕ {problem}")
+    if problems:
+        return 1
+    say(f"{spec.path}: {len(spec.beats)} beats, {len(spec.fixtures)} fixtures — valid")
+    return 0
 
-out = [lines[0]]
-dropped = 0
-for line in lines[1:]:
-    t, kind, data = json.loads(line)
-    if cut is not None and t > cut:
-        dropped += 1
-        continue
-    out.append(json.dumps([round(remap(t), 6), kind, data]))
-open(cast_path, "w", encoding="utf-8").write("\n".join(out) + "\n")
 
-before = json.loads(lines[-1])[0]
-after = json.loads(out[-1])[0]
-for start, end in spans:
-    print(f"wait of {end - start:.1f}s -> {min(end - start, span_target):.1f}s")
-print(f"startup of {head:.1f}s collapsed")
-if cut is not None:
-    print(f"tail cut at {cut:.1f}s ({dropped} events after the app closed)")
-print(f"{before:.0f}s → {after:.0f}s")
-PY
-}
+def cmd_doctor(spec: Spec | None, args) -> int:
+    tools = [("tmux", "drives the recorded pty", "apt install tmux"),
+             ("asciinema", "records the cast", "apt install asciinema"),
+             ("agg", "cast to GIF", "cargo install --git https://github.com/asciinema/agg"),
+             ("ffmpeg", "poster frames, mp4", "apt install ffmpeg")]
+    missing = 0
+    for name, what, how in tools:
+        if shutil.which(name):
+            result = subprocess.run([name, "--version"], capture_output=True, text=True)
+            first = (result.stdout or result.stderr).splitlines()[:1]
+            print(f"  ✓ {name:<10} {first[0] if first else ''}")
+        else:
+            missing += 1
+            print(f"  ✕ {name:<10} {what}\n     install: {how}")
+    if spec:
+        print()
+        for entry in spec.sandbox.get("link", []):
+            source = Path(os.path.expanduser(spec.resolve(entry["from"])))
+            mark = "✓" if source.exists() else ("·" if entry.get("optional") else "✕")
+            print(f"  {mark} link   {source}")
+        for name in spec.sandbox.get("binaries", []):
+            print(f"  {'✓' if shutil.which(name) else '✕'} binary {name}")
+    return 1 if missing else 0
 
-# ── render ───────────────────────────────────────────────────────────────
 
-cmd_render() {
-  local cast="${1:-}" out="${2:-}"; shift 2 2>/dev/null || true
-  [ -f "$cast" ] || die "render needs an existing cast"
-  [ -n "$out" ] || die "render needs an output file"
-  need agg
-  local bg="0a0c0d" fg="e2e4e6" speed=1.0 font=14 idle=1.5 palette=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --bg)        bg="${2#\#}"; shift 2 ;;
-      --fg)        fg="${2#\#}"; shift 2 ;;
-      --speed)     speed="$2"; shift 2 ;;
-      --font-size) font="$2"; shift 2 ;;
-      --idle)      idle="$2"; shift 2 ;;
-      --palette)   palette="$2"; shift 2 ;;
-      *) die "unknown render option: $1" ;;
-    esac
-  done
-  # agg paints the frame's padding in the theme's background, so a theme
-  # that isn't the app's own background shows up as a border in a colour the
-  # app never uses. Match it to what the app actually paints.
-  : "${palette:=15181a,e06c75,98c379,e5c07b,61afef,c678dd,56b6c2,abb2bf,4b5263,f07178,b5e890,f0d399,7cc4ff,d7a3ea,7fdbd4,f2f4f6}"
-  agg --theme "$bg,$fg,$palette" --font-size "$font" --speed "$speed" \
-      --idle-time-limit "$idle" "$cast" "$out" >/dev/null 2>&1 \
-    || die "agg failed"
-  local size; size=$(du -h "$out" | cut -f1)
-  local secs=""
-  command -v ffprobe >/dev/null 2>&1 &&
-    secs=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out" 2>/dev/null)
-  note "$out — $size${secs:+, ${secs%.*}s}"
-}
+def need(*tools: str) -> None:
+    for tool in tools:
+        if not shutil.which(tool):
+            die(f"{tool} is not installed (run: tui-record doctor)")
 
-# ── main ─────────────────────────────────────────────────────────────────
 
-usage() {
-  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
-}
+def cmd_redact(args) -> int:
+    cast = Path(args.cast)
+    text = cast.read_text(errors="replace")
+    for pattern in args.pattern:
+        # Same length, so nothing on screen reflows: a shorter replacement
+        # moves every glyph after it on that row.
+        text, count = re.subn(pattern, lambda match: "x" * len(match.group(0)), text)
+        say(f"{pattern}: {count} substitution(s)")
+    cast.write_text(text)
+    return 0
 
-case "${1:-}" in
-  doctor)   shift; cmd_doctor "$@" ;;
-  take)     shift; cmd_take "$@" ;;
-  check)    shift; cmd_check "$@" ;;
-  redact)   shift; cmd_redact "$@" ;;
-  compress) shift; cmd_compress "$@" ;;
-  render)   shift; cmd_render "$@" ;;
-  ""|-h|--help|help) usage ;;
-  *) die "unknown subcommand: $1" ;;
-esac
+
+SCAFFOLD = '''# What this video is, and everything needed to make it again.
+# `tui-record beats demo.toml` reads it back as prose; `validate` checks it.
+
+[video]
+title = "demo"
+out   = "docs/demo.gif"            # relative to the project root
+cast  = "{root}/take.cast"         # the raw take is kept beside it
+cols  = 140                        # fewer columns = bigger text where it embeds
+rows  = 36
+speed = 1.3                        # past ~1.5 it reads as fast-forward
+background = "0a0c0d"              # the app's own, or the padding shows a border
+wait_collapse = 1.5                # what a `wait` beat collapses to
+
+[sandbox]
+root     = "~/.demo-sandbox"       # never on screen
+fixtures = "/tmp/demos"            # on screen: keep the username out of it
+cwd      = "{fixtures}/project"
+command  = ["./target/release/app"]
+shell    = "{home}/demoshell"
+env      = { PS1 = "project $ " }
+
+write = [
+  { path = "{home}/demoshell", executable = true, text = "#!/bin/sh\\nexec /bin/bash --norc --noprofile\\n" },
+  { path = "{home}/.gitconfig", text = "[user]\\n\\tname = Ada Lovelace\\n\\temail = ada@demo.dev\\n" },
+]
+
+[[fixture]]
+name = "project"
+[[fixture.commit]]
+message  = "chore: initial commit"
+days_ago = 7
+files    = { "README.md" = "# project" }
+
+[[beat]]
+say   = "the app is open on a real project"
+pause = 1.5
+
+[[beat]]
+say   = "someone asks it for something"
+type  = "help"
+pause = 2.0
+
+[[beat]]
+say = "and leaves"
+end = "C-c"
+'''
+
+
+def cmd_init(argument: str, args) -> int:
+    path = Path(argument).expanduser()
+    if path.is_dir():
+        path = path / "demo.toml"
+    if path.exists() and not args.force:
+        die(f"{path} exists (use --force)")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(SCAFFOLD)
+    say(f"wrote {path} — fill in the beats, then: tui-record validate {path}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="tui-record", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command")
+    for name in ("validate", "beats", "seed"):
+        sub.add_parser(name).add_argument("spec", nargs="?", default=".")
+    init = sub.add_parser("init")
+    init.add_argument("spec", nargs="?", default=".")
+    init.add_argument("--force", action="store_true")
+    sub.add_parser("doctor").add_argument("spec", nargs="?")
+    probe = sub.add_parser("probe")
+    probe.add_argument("spec", nargs="?", default=".")
+    probe.add_argument("--screen", action="store_true", help="print the live frame")
+    probe.add_argument("--find", metavar="TEXT", help="where a selector would land")
+    probe.add_argument("--in", dest="where", help="sidebar | pane | strip | screen")
+    probe.add_argument("--stop", action="store_true")
+    for name in ("run", "recut"):
+        runner = sub.add_parser(name)
+        runner.add_argument("spec", nargs="?", default=".")
+        runner.add_argument("--retries", default=3)
+        runner.add_argument("-v", "--verbose", action="store_true")
+    check = sub.add_parser("check")
+    check.add_argument("cast")
+    check.add_argument("--forbid", action="append", default=[])
+    redact = sub.add_parser("redact")
+    redact.add_argument("cast")
+    redact.add_argument("--pattern", action="append", required=True)
+
+    args = parser.parse_args()
+    if not args.command:
+        parser.print_help()
+        return 0
+    if args.command == "init":
+        return cmd_init(args.spec, args)
+    if args.command == "check":
+        return 2 if leaks(Path(args.cast), args.forbid) else 0
+    if args.command == "redact":
+        return cmd_redact(args)
+    if args.command == "doctor":
+        return cmd_doctor(load_spec(args.spec) if args.spec else None, args)
+    spec = load_spec(args.spec)
+    return {"validate": cmd_validate, "beats": cmd_beats, "seed": cmd_seed,
+            "probe": cmd_probe, "run": cmd_run, "recut": cmd_recut}[args.command](spec, args)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        raise SystemExit(130)

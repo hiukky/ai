@@ -32,7 +32,7 @@
     {
       "name": "tui",
       "source": "./tui",
-      "description": "Terminal UI media - starting with a record skill that turns a TUI into a demo video: an isolated sandbox, a scripted and verified take, waits cut out, and a leak check before it is published.",
+      "description": "Terminal UI media - starting with a record skill that generates a demo video from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in.",
       "keywords": [
         "tui",
         "asciinema",

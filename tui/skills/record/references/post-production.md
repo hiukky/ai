@@ -22,16 +22,14 @@ keeps `SHELL`, which is a small leak and a pointless one.
 
 ## Cutting
 
-`tui-record compress` rewrites timestamps only:
+The cut (inside `run` and `recut`) rewrites timestamps only:
 
-- Every `NAME_start`/`NAME_end` pair left by `wait_span` is a stretch where
-  the video was waiting, rescaled to `--span` seconds (default 1.5).
+- Every span a `wait` beat marked is a stretch where the video was only
+  waiting, rescaled to the spec's `wait_collapse` seconds (default 1.5).
 - Everything before `driver_start` is app startup, collapsed to a single
   instant so the video opens on the app already running.
-- Everything after the app leaves the alternate screen (its `[?1049l`) is
-  cut, along with that write itself — it is the one that blanks the screen.
-  A driver can mark the end explicitly instead (`mark driver_end`), and
-  `--tail` says how much to keep after it.
+- Everything after the `end` beat is cut, and so is the app's own exit
+  (`[?1049l`) — that write is the one that blanks the screen.
 
 **It never deletes an event before the end, and neither should anything you
 write.** Dropping the startup events removes the first full paint; the
@@ -50,22 +48,22 @@ spinner that keeps moving, sped up, reads as time passing. A hard cut reads
 as a glitch.
 
 Because the marks are wall-clock and the header's `timestamp` is the take's
-start, a cast can be re-cut with different targets at any time — as long as
-you kept the raw cast. `take` writes `<name>.raw.cast` for exactly that.
+start, a cast can be re-cut with different numbers at any time — that is what
+`recut` does, off the `.raw.cast` the run keeps beside it.
 
 ## Rendering
 
-`tui-record render` wraps [agg](https://github.com/asciinema/agg) (install
+Rendering wraps [agg](https://github.com/asciinema/agg) (install
 from its repository — the `agg` crate on crates.io is unrelated and has no
 binary).
 
-| Option | Use |
+| Spec key | Use |
 |---|---|
-| `--bg` | The app's own background colour. |
-| `--fg`, `--palette` | The 16 ANSI colours; matters for shells and other programs running inside the app, not the app's own truecolour drawing. |
-| `--font-size` | 13-14 for a README; the pixel size of the output scales with it. |
-| `--speed` | 1.0-1.4 reads as a person. Past ~1.5 it reads as fast-forward. |
-| `--idle` | Caps gaps between writes. Useless while a spinner animates — that is what `compress` is for. |
+| `background` | The app's own background colour. |
+| `foreground`, `palette` | The 16 ANSI colours; matters for shells and other programs running inside the app, not the app's own truecolour drawing. |
+| `font_size` | 13-14 for a README; the pixel size of the output scales with it. |
+| `speed` | 1.0-1.4 reads as a person. Past ~1.5 it reads as fast-forward. |
+| `idle_limit` | Caps gaps between writes. Useless while a spinner animates — that is what a `wait` beat is for. |
 
 The renderer paints the padding around the terminal in the theme
 background, so a theme that is not the app's shows as a border in a colour

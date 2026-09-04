@@ -6,278 +6,207 @@ compatibility: bash, tmux, asciinema (2.x or 3.x) and python3 for recording and 
 
 # Record a TUI
 
-A demo video is a **take**, not a screen capture. Someone scripts it, a
-machine performs it the same way every time, and every gesture is checked
-before the next one runs. That is the difference between a recording that
-sells a tool and one that shows an app being poked at.
+A demo video is a **take**, not a screen capture: someone writes what it
+shows, a machine performs it the same way every time, and every gesture is
+checked before the next one runs.
 
-Everything here is built around three claims:
+The spec is the source of truth. One file — `demo.yml` next to the video it
+produces — says what the video shows, in order, and everything needed to
+make it again: the sandbox it is recorded in, the fixtures the app acts on,
+and the numbers it is cut with. Nothing about a finished video lives in a
+shell history, and changing the video means editing that file, never
+reverse-engineering the pixels.
 
-- **The subject is a sandbox.** A terminal shows the operator's home
-  directory, prompt, hostname, repository, branches and open work. A demo
-  is published; none of that should be.
-- **Nothing addresses the screen by a coordinate typed in advance.** Tab
-  strips shift, sidebars grow, labels are named by the app. Read the frame
-  that is on screen right now.
-- **A beat that silently did nothing spoils the take.** The next beat types
-  into whatever has focus and the video ends up looking like the app
-  misbehaving. Verify each gesture; abort and retry rather than ship it.
+```
+tui-record init     .demo/demo.yml   scaffold a spec
+tui-record validate .demo            parse, resolve, complain
+tui-record beats    .demo            read it back as prose
+tui-record seed     .demo            build the sandbox and fixtures
+tui-record probe    .demo            the app live, to try a selector out
+tui-record run      .demo            record → cut → leak-check → render → poster
+tui-record recut    .demo            cut and render the last take again
+```
 
-## The pipeline
+`references/spec.md` is the key-by-key reference. Read it before writing a
+spec; the rest of this file is the judgment the keys cannot carry.
 
-`scripts/tui-record` is one stage per subcommand, each reading the previous
-stage's file, so a take can be re-cut and re-rendered without recording
-again.
+## 1. Decide the cut before writing beats
 
-| Stage | Command | Keep |
-|---|---|---|
-| Check tools | `tui-record doctor` | — |
-| Perform the take | `tui-record take --driver D --out demo.cast -- <app>` | `demo.raw.cast` (the negative) |
-| Prove it is safe | `tui-record check demo.cast` | — |
-| Redact what is left | `tui-record redact demo.cast --pattern '<regex>'` | — |
-| Cut the waiting | `tui-record compress demo.cast --span 1.5` | — |
-| Render | `tui-record render demo.cast demo.gif --bg <app bg>` | `demo.gif` |
-
-`scripts/driver-lib.sh` is what a driver sources: screen reads, mouse and
-keyboard gestures, typing with human cadence, per-beat assertions, and the
-marks that tell `compress` which stretches were only waiting.
-
-## 1. Decide the cut before recording
-
-Length is a function of where it will live. Pick one and hold it — a hero
+Length is a function of where the video lives. Pick one and hold it — a hero
 that runs two minutes is not a long hero, it is an unwatched one.
 
 | Destination | Length | Shape |
 |---|---|---|
 | README hero, docs landing | 20-40s | One arc, no dead time, loops cleanly |
 | README "how it works" | 30-60s | Three or four beats, each legible |
-| Docs walkthrough | 1-3 min | Chapters; consider several short clips instead |
+| Docs walkthrough | 1-3 min | Chapters; consider several short clips |
 | Bug repro | as short as the bug | No polish; the raw cast is often enough |
 
-Then size the terminal. GitHub scales an embedded image to roughly 900px
-wide, so **fewer columns means bigger text**: 140x36 reads well in a README,
-160x40 is for a walkthrough where layout matters more than legibility. Check
-that the app's layout does not truncate at your chosen width before
-recording a full take.
+Then size the terminal: an embedded image is scaled to its column (~900px on
+GitHub), so **fewer columns means bigger text**. Check the app does not
+truncate at that width before spending a take on it.
 
-Write the beat list before writing any script, in the order a viewer should
-understand the tool — usually: the thing exists → the user does one real
-thing with it → the result appears → one screen that shows breadth. Every
-beat you cannot state a reason for is a beat to cut.
+Write the beat list as `say:` lines first, in the order a viewer should
+understand the tool — usually *the thing exists → someone does one real thing
+with it → the result appears → one screen that shows breadth*. `tui-record
+beats` reads those lines back; if that reading does not sell the tool, no
+amount of gesture polish will.
 
-## 2. Record a sandbox, never your own machine
+## 2. The subject is a sandbox, never your machine
 
-Build a throwaway environment and record that. The checklist, in the order
-these actually leak:
+A terminal shows the operator's home directory, prompt, hostname, repository
+and open work. A demo is published; none of that should be. The `sandbox`
+section of the spec builds a disposable one, and `seed` runs it — on a fresh
+machine, or after `/tmp` is wiped and the fixtures go with it.
 
-- **A `HOME` of its own**, exported through `env -i` along with an explicit
-  `PATH`, `TERM`, `SHELL` and `LANG`. Nothing inherited: `env -i` is what
-  keeps the operator's variables — and those of whatever launched the
-  recording — out of the take.
-- **A runtime dir of its own** (`XDG_RUNTIME_DIR`) so the app's sockets
-  don't collide with the operator's own running instance — and keep the
-  path short: a UNIX socket path over ~100 bytes fails with
-  `path must be shorter than SUN_LEN`, which a deep scratch directory
-  exceeds easily.
-- **Fake projects in a dedicated parent directory.** Not `/tmp` itself: any
-  file picker that lists the parent will show every other tenant of `/tmp`,
-  including paths containing the operator's username. `/tmp/demos/<project>`
-  lists only what you put there.
-- **A prompt with no identity in it.** Point `SHELL` at a wrapper that execs
-  `bash --norc --noprofile` with your own `PS1` exported; otherwise the
-  prompt prints `user@host`.
-- **A git identity for the demo** (`~/.gitconfig` in the sandbox home).
-  Otherwise commits are authored by the operator, or tools complain that no
-  identity is set — on camera.
-- **Seed a believable history.** A repo with five commits, a couple of
-  dirty files and a real `README` reads as a project; an empty repo reads as
-  a test fixture. Backdate with `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`, and
-  keep every date in the past — "in the future" in a timeline is a tell.
-- **Silence first-run noise.** Onboarding wizards, tips, update banners and
-  trust prompts are all state in the sandbox home; set them as already-seen
-  before the take rather than clicking through them on camera.
-- **Grant permissions with an allowlist, not a bypass mode.** A tool's
-  "skip all prompts" mode usually opens a consent screen of its own, which
-  is then the first thing in your video; an explicit allow list gets the
-  same silence with nothing to click.
+What matters, in the order these actually leak:
 
-If the app under test drives another tool that needs credentials (a cloud
-CLI, a database client, an AI harness), decide deliberately: either the demo runs
-unauthenticated and shows a login screen, or the operator grants access on
-purpose. **Never copy a credential file into a sandbox on your own
-initiative** — ask, and prefer a symlink to the real one (nothing is
-duplicated, and removing the link ends the grant) over a copy that outlives
-the recording.
+- **A `HOME`, `PATH` and `TERM` of its own**, entered through `env -i`.
+  Inherited variables are how a recording ends up with somebody's name in it.
+- **Fixtures outside `$HOME`.** Their path is on screen. `/tmp/demos/x` shows
+  no username; a directory under `$HOME` does. Nothing precious lives there —
+  the spec rebuilds them.
+- **A prompt with no identity**, and a git identity of the demo's own, or the
+  commits on screen belong to the person recording.
+- **A believable past.** Five dated commits read as a project; an empty repo
+  reads as a test fixture. Keep every date in the past.
+- **Silence the first run.** Onboarding, tips, update banners and trust
+  prompts are state in the sandbox home; pre-answer them with `write` and
+  `patch_json` rather than clicking through them on camera.
+- **Grant permissions with an allow list, not a bypass mode.** A tool's "skip
+  all prompts" mode usually opens a consent screen of its own, which then
+  *is* the first frame of your video.
 
-## 3. Write the take as a driver
+**Credentials are a deliberate grant.** If the app drives something that
+needs one, `link` it (a symlink, never a copy: deleting the link ends the
+grant), and say so out loud — the video costs whatever that account spends.
+Never wire one up on your own initiative.
 
-A driver is a bash script that sources `driver-lib.sh` and calls one
-function per gesture. `tui-record take` runs it against the recorded pty.
+## 3. Author beats against the live app
 
-```bash
-#!/usr/bin/env bash
-source /path/to/tui/skills/record/scripts/driver-lib.sh   # absolute path
-
-begin 1.0                                   # marks where startup ends
-
-type_line "git log --oneline -5"; p 2.0     # human cadence, then Enter
-
-click_text "+ new" 2 1 31                   # sidebar band: cols 1..31
-require "the picker opened" "at /tmp" 6
-
-new_tab=$(active_tab_label)                 # never assume the app's label
-```
-
-The vocabulary is in `references/driving.md`, which also covers driving a
-**mouse-driven** TUI: many terminal apps put real actions behind clicks, and
-`press`/`click`/`dclick` write SGR mouse events straight into the pty, which
-the app cannot tell from a hand. Reach for the mouse when the app does — a
-keyboard-only take of a pointer-driven app is what makes a video look
-robotic.
-
-Rules that earn their place:
-
-- **Read coordinates from the current frame, and re-read them after
-  anything that redraws.** Selecting a tab changes the strip's widths, so a
-  double-click that reads the column once lands on nothing.
-- **A column of 0 means "not found".** Adding an offset to it clicks column
-  2 — the top-left corner, which in most TUIs is a different screen. The
-  library refuses instead; keep it that way in your own helpers.
-- **Ask the app what things are called.** A second tab is not necessarily
-  "tab 2" — the label depends on what the other tabs are named.
-  `active_tab_label` reads it.
-- **Verify in the right region.** `require` scans the whole screen, which
-  will happily match a filename in a file list; `require_row` scans one row.
-  A tab rename is only proven by the tab strip.
-
-## 4. Run it, and let it fail loudly
+Guessing selectors costs a take each. `probe` runs the app in its sandbox
+with no recording:
 
 ```
-tui-record take --driver ./drive.sh --out demo.cast \
-  --cols 140 --rows 36 --title "demo" \
-  --reset "./reset.sh" -- ./launch.sh
+tui-record probe .                    # start it
+tui-record probe . --screen           # the frame, as text
+tui-record probe . --find 'Manage'    # where that selector lands, per band
+tui-record probe . --stop
 ```
 
-`--reset` runs before every attempt: put the sandbox back to the state the
-take assumes: delete what the previous attempt created, restore the fixture
-data, clear the app's own state. A take that starts from the previous take's leftovers records a
-different video than the one you scripted.
+The interpreter reads coordinates from the frame that is on screen at that
+moment, never from numbers written in advance — strips shift when a tab
+appears, sidebars shift when a row does. `references/driving.md` covers what
+that means for targeting, and the failure modes each rule prevents.
 
-A driver that loses a beat exits `3`; `take` reports it and runs the whole
-thing again. Some apps also lose their terminal during startup for reasons
-that have nothing to do with the take — the retry loop absorbs that too.
+Two things the spec asks of every beat that can miss:
 
-## 5. Cut the waiting, not the events
+- `expect` — a regex the screen must show afterwards. Prefer the narrowest
+  proof: `expect: docs` matches a filename in a listing; `expect_in: strip`
+  proves the tab was renamed.
+- `refuse` — what must *not* be there: an empty panel, an approval dialog, a
+  stale read.
 
-Real software takes real time: a build runs, an index rebuilds, a request
-flies, a model answers. Wrap exactly those stretches in `wait_span`, which polls a shell
-condition and brackets it with marks:
+A beat with no proof is the expensive kind of bug: the gesture misses
+silently, the next beat types into whatever has focus, and the video looks
+like the app misbehaving. `validate` warns about exactly that.
 
-```bash
-wait_span build 120 test -f "$fixture/dist/app.js"
-```
+## 4. Cut the waiting, not the events
 
-`tui-record compress` then rescales those spans to `--span` seconds and
-collapses everything before the first beat, so the video opens on the app
-already running.
+Real software takes real time. Wrap those stretches — and only those — in a
+`wait` beat: it polls a condition and marks the span, and the cut squeezes it
+to `wait_collapse` seconds.
 
-A GIF loops, so a blank final frame reads as a pause at *both* ends: the
-cut also drops the app's exit — the write that blanks the screen — so the
-last frame is the last thing worth looking at.
+Keep the condition specific to the thing you are about to show. "Some file
+changed somewhere" is satisfied by a part of the app nobody is looking at,
+and the beat after it then opens an empty panel.
 
-**Compression rescales timestamps; it never drops events before the end.** The startup
-frames carry the terminal's first full paint — drop them and the player
-draws the rest of the take onto a blank screen, which looks exactly like a
-broken sidebar that renders nowhere else. If a rendered GIF is missing
-panels the live app clearly draws, this is the cause.
+**The cut rescales time; it never drops an event before the end.** Dropping
+the startup events removes the terminal's first full paint, and the player
+draws the rest onto a blank screen — panels missing that the live app clearly
+draws, which reads as an app bug and sends you debugging the wrong thing.
+Trailing events are the exception: the `end` beat marks where the video
+stops, so the app's own exit — the write that blanks the screen — never
+reaches it. A GIF loops, and a blank final frame shows at *both* ends.
 
-Prefer real time where a viewer is learning something (typing, a menu
-opening, a diff appearing) and compress only latency. A global `--speed`
-above ~1.5 at render time starts to read as a fast-forward rather than a
-person.
+## 5. Render to match the app
 
-## 6. Render to match the app
-
-```
-tui-record render demo.cast demo.gif --bg 0a0c0d --speed 1.3 --font-size 14
-```
-
-`--bg` must be the colour the app actually paints, not a theme you like:
-the renderer paints the frame's padding in the theme background, so a
-mismatch shows up as a border in a colour the app never uses. Take it from
-the app's own palette constant, and verify from the output rather than by
-eye:
+The renderer paints the frame's padding in the theme background, so
+`background` must be the colour the app actually paints — take it from the
+app's palette constant, and verify from the output:
 
 ```
-ffmpeg -i demo.gif -vf "select=eq(n\,40)" -vsync 0 frame.png   # then look at it
+ffmpeg -i demo.gif -vf "select=eq(n\,40)" -vsync 0 frame.png
 ```
 
-Weight matters where it is embedded: a 30-40s GIF at 140x36 lands around
-500KB-1MB, which is fine for a README. If it does not, cut beats before
-cutting quality. For a docs site, an mp4 (via ffmpeg) or the asciinema
-player embedding the `.cast` both beat a heavier GIF — and the `.cast` keeps
-the text selectable.
+Speed 1.0-1.4 reads as a person; past ~1.5 it reads as fast-forward. If the
+file is too heavy for where it embeds, cut beats before cutting quality.
 
-## 7. Prove it is publishable
+Point `poster_when` at what has to be on screen rather than `poster_at` at a
+second: a re-cut moves every timestamp, and a poster pinned to a number
+silently becomes a half-drawn frame.
 
-`tui-record check` is not advisory. Run it on the final cast, before
-handing anything over:
+## 6. Publishing is gated, not advised
 
-```
-tui-record check demo.cast --forbid 'internal\.example\.com'
-```
+`run` refuses to finish when the leak scan finds the operator's username,
+home path or hostname, a session URL, an `sk-` token, a bearer header, a
+private key or a private IP. `forbid` adds project-specific patterns.
 
-It reports size and duration and scans for the operator's username, home
-path and hostname, session URLs, `sk-` style tokens, bearer headers, private
-keys and private IPs. Anything it finds gets redacted with same-length
-replacements (`tui-record redact`), so nothing on screen reflows — a
-redaction that shortens a string moves every glyph after it on that row.
+Redaction (`tui-record redact`) replaces with same-length text so nothing
+reflows, and it is a last resort: it only fixes what you thought to search
+for, while the sandbox fixes what you did not.
 
-Tell the person what remains visible that a scanner cannot judge: a plan
-name, a version number, a model name, a workspace title. Those are theirs to
-decide, but only if they are told.
+Two things the scan cannot judge, worth naming to whoever asked for the
+video: what the app's own chrome reveals (a plan tier, a version, a model
+name), and whether the demo content itself is fine to publish.
 
 ## What it costs
 
-Measured, so a plan can be made against it rather than a guess:
+Measured, so a plan can be made against it:
 
 | Stage | Time |
 |---|---|
-| One successful take | the take's own length + ~12s (settle, then asciinema closing the file) |
-| A lost beat | that attempt's time again — the runner resets and repeats |
-| `compress`, `check` | well under a second each |
+| One successful take | the take's own length + ~12s |
+| A lost beat | that attempt again — the runner resets and repeats |
+| `compress`, `check` | well under a second |
 | `render` | ~16s for a 45s cast at 152 columns |
-| Re-cut and re-render from the raw cast | ~20s, no recording |
+| `recut` (re-cut and re-render, no recording) | ~20s |
+| `seed` (whole sandbox from nothing) | ~20s, plus whatever it downloads |
 
-What dominates is the app's own latency inside the video (an operation that
-takes two minutes is two minutes of wall clock even when `wait_span` keeps
-it out of the cut), and then lost beats. Writing and debugging a driver for an
-app nobody has recorded before costs far more than any of this — budget it
-as the real work, and keep the driver afterwards.
+What dominates is the app's own latency inside the video — an operation that
+takes two minutes is two minutes of wall clock even when the cut hides it —
+and then lost beats. Writing the first spec for an app nobody has recorded
+costs far more than any of this; that is the work, and the spec is what makes
+it a one-time cost.
 
 ## When a take goes wrong
 
 | Symptom | Cause |
 |---|---|
-| A second of black at the start or the end | The app's exit is still in the cut. A GIF loops, so a blank last frame shows at both ends. |
-| A prompt was typed into the shell instead of the app | A gesture missed and the driver kept going. Add `require` after it. |
-| The driver clicked something unrelated | A coordinate was 0 and an offset was added to it. |
-| A double-click did nothing | The strip redrew between the two clicks; select, settle, re-read, then double-click. |
-| A rename typed into the pane | The rename editor never opened. Assert on the editor's own cursor glyph before typing. |
-| An assertion passed but the beat did not happen | The pattern matched elsewhere on screen. Use `require_row`. |
-| The GIF has blank panels the app draws | Startup events were dropped instead of collapsed. |
-| The GIF has a coloured border | The render theme's background is not the app's. |
-| The video is right but far too long | Waits were not wrapped in `wait_span`. |
-| The take is flaky at startup only | Let the retry loop handle it, and check whether the app kills its terminal (a stale pid file plus PID reuse is one real cause). |
+| Text typed into the wrong place | A gesture missed and the take carried on. Add `expect`. |
+| A click landed somewhere unrelated | The target was not on screen; only ever offset a real hit. |
+| A double-click did nothing | The strip redrew between the two clicks (the interpreter re-reads; a hand-written driver must too). |
+| An `expect` passed but the beat did not happen | The pattern matched elsewhere. Narrow it with `expect_in`. |
+| A rendered GIF has blank panels | Startup events were dropped instead of collapsed. |
+| A coloured border around the frame | `background` is not the app's own. |
+| A second of black at either end | The app's exit is still in the cut — the take needs an `end` beat. |
+| The video is right but far too long | Latency was not wrapped in `wait` beats. |
+| Flaky only at startup | Let the retries absorb it; check whether the app kills its own terminal (a stale pid file plus PID reuse is one real cause). |
 
-## Also worth knowing
+## Leave it reproducible
 
-- Never `pkill -f <pattern>` while driving: the pattern matches the very
-  shell running the driver, and the recording dies with it. Kill by pid,
-  after confirming the pid through `/proc/<pid>/cmdline`.
-- Recording an app that spawns another tool means that tool's own first-run
-  UI is part of your video. Check what it prints before the take,
-  not after.
-- Keep the driver, the reset script and the sandbox around. The next
-  version of the tool needs the same video, and reproducing the environment
-  is most of the work.
+What the next person needs is not the cast — it is everything that produced
+it, in the project it demos. That is the whole point of the spec: `.demo/`
+holds the spec and the output, and nothing else. No scripts to read, no
+parameters that live in someone's history.
+
+Three properties keep it that way:
+
+- **The sandbox is built by the spec, not by hand.** Whatever you did
+  interactively to make the app look right belongs in `write`, `link`,
+  `provision` or `patch_json`, or it is lost the first time the machine
+  changes.
+- **The fixtures are disposable and the spec says how to rebuild them.**
+- **Every parameter is a decision with a reason** — write the reason as a
+  comment beside it. That is the difference between changing a video and
+  re-deriving one.

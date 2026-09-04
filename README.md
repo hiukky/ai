@@ -27,7 +27,7 @@ uze market add hiukky/ai
 |---|---|---|
 | [`openspec`](openspec/) | `init` · `adr` | Spec-driven change workflow (proposal → specs → design → tasks), with ADRs formalized at archive time and LikeC4 for living diagrams |
 | [`git`](git/) | `commit` · `pr` | [Conventional Commits](https://www.conventionalcommits.org/) and gitflow-named pull requests — committed proactively once a unit of work is done, not only when asked |
-| [`tui`](tui/) | `record` | A TUI turned into a demo video worth publishing: disposable sandbox, verified take, waits cut, leak scan before it ships |
+| [`tui`](tui/) | `record` | A TUI turned into a demo video, generated from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in |
 
 Every skill declares who may invoke it in its own frontmatter — the default
 is model **and** user, so an agent can reach for it and a person can call it
