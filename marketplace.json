@@ -9,19 +9,53 @@
       "name": "openspec",
       "source": "./openspec",
       "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
-      "keywords": ["openspec", "adr", "architecture-decision-records", "likec4", "architecture", "standard"]
+      "keywords": [
+        "openspec",
+        "adr",
+        "architecture-decision-records",
+        "likec4",
+        "architecture",
+        "standard"
+      ]
     },
     {
       "name": "git",
       "source": "./git",
       "description": "Personal git workflow conventions: a Conventional Commits skill and a pull/merge request skill (gitflow branches, conventional titles).",
-      "keywords": ["git", "commit", "conventional-commits", "workflow"]
+      "keywords": [
+        "git",
+        "commit",
+        "conventional-commits",
+        "workflow"
+      ]
     },
     {
       "name": "team",
       "source": "./team",
       "description": "Personal multi-agent coordination toolkit - starting with a Git worktree coordinator that isolates parallel agent writers safely.",
-      "keywords": ["git", "worktree", "multi-agent", "parallel-agents", "coordination", "team", "isolation"]
+      "keywords": [
+        "git",
+        "worktree",
+        "multi-agent",
+        "parallel-agents",
+        "coordination",
+        "team",
+        "isolation"
+      ]
+    },
+    {
+      "name": "tui",
+      "source": "./tui",
+      "description": "Terminal UI media - starting with a record skill that turns a TUI into a demo video: an isolated sandbox, a scripted and verified take, waits cut out, and a leak check before it is published.",
+      "keywords": [
+        "tui",
+        "asciinema",
+        "demo",
+        "screencast",
+        "gif",
+        "recording",
+        "documentation"
+      ]
     }
   ]
 }

@@ -85,6 +85,25 @@ git-worktree-coordinator (model+user)   Create/verify/list/finish/remove a workt
 
 See `team/`.
 
+### `tui`
+
+Terminal UI media. The `record` skill produces a demo video of a TUI that
+is actually publishable: it records a **disposable sandbox** rather than
+the operator's machine, performs the take through a driver script where
+every gesture is verified before the next one runs (a beat that silently
+misses is what makes a recording look like the app misbehaving), cuts the
+waiting by rescaling timestamps instead of dropping events, and refuses to
+call a cast finished until a leak scan passes.
+
+```
+record (model+user)   Record a TUI as a demo video - sandbox, take, cut, render
+```
+
+Ships `scripts/tui-record` (`doctor`/`take`/`check`/`redact`/`compress`/`render`)
+and `scripts/driver-lib.sh`, the gesture library a take is written in.
+
+See `tui/`.
+
 ## Install
 
 Register this repo as a marketplace once:
@@ -101,6 +120,7 @@ dependency):
 uze plugin install openspec@ai
 uze plugin install git@ai
 uze plugin install team@ai
+uze plugin install tui@ai
 ```
 
 Or scoped to just the current project instead (adds to that project's
@@ -110,6 +130,7 @@ Or scoped to just the current project instead (adds to that project's
 uze openspec@ai
 uze git@ai
 uze team@ai
+uze tui@ai
 ```
 
 (dotfiles-managed machines: this repo is cloned/updated locally by that

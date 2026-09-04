@@ -1,0 +1,334 @@
+#!/usr/bin/env bash
+# tui-record — record a terminal UI as a demo video.
+#
+#   tui-record doctor
+#   tui-record take   --driver D --out FILE [opts] -- COMMAND...
+#   tui-record check  CAST [--forbid REGEX]...
+#   tui-record redact CAST --pattern REGEX [--pattern REGEX]...
+#   tui-record compress CAST --marks FILE [--span 1.5] [--head 0]
+#   tui-record render CAST OUT.gif [--bg 0a0c0d] [--speed 1.4] [--font-size 14]
+#
+# Each subcommand is one stage of the pipeline and reads the previous
+# stage's file, so a take can be re-cut and re-rendered without recording
+# again. Keep the raw cast: it is the negative.
+
+set -uo pipefail
+
+die() { printf 'tui-record: %s\n' "$*" >&2; exit 1; }
+note() { printf '%s\n' "$*"; }
+
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 is not installed (run: tui-record doctor)"; }
+
+# ── doctor ───────────────────────────────────────────────────────────────
+
+cmd_doctor() {
+  local missing=0
+  _probe() {
+    local bin="$1" what="$2" how="$3"
+    if command -v "$bin" >/dev/null 2>&1; then
+      printf '  ✓ %-10s %s\n' "$bin" "$($bin --version 2>&1 | head -1)"
+    else
+      printf '  ✕ %-10s %s\n     install: %s\n' "$bin" "$what" "$how"
+      missing=1
+    fi
+  }
+  note "tools:"
+  _probe tmux      "drives the recorded pty"        "apt install tmux"
+  _probe asciinema "records the cast"                "apt install asciinema  (ou: pipx install asciinema)"
+  _probe agg       "cast to GIF"                  "cargo install --git https://github.com/asciinema/agg  (the crates.io 'agg' is a different crate)"
+  _probe python3   "cast surgery"            "apt install python3"
+  _probe ffmpeg    "frame inspection, mp4"    "apt install ffmpeg"
+  note ""
+  if [ "$missing" -eq 0 ]; then
+    note "all set."
+  else
+    note "without agg you can still record and publish the .cast; without tmux/asciinema you cannot record at all."
+    return 1
+  fi
+}
+
+# ── take ─────────────────────────────────────────────────────────────────
+
+cmd_take() {
+  local driver="" out="" cols=140 rows=36 retries=3 settle=8 session=tuirec title=""
+  local marks="" keep_raw=1 reset_cmd=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --driver)   driver="$2"; shift 2 ;;
+      --out)      out="$2"; shift 2 ;;
+      --cols)     cols="$2"; shift 2 ;;
+      --rows)     rows="$2"; shift 2 ;;
+      --retries)  retries="$2"; shift 2 ;;
+      --settle)   settle="$2"; shift 2 ;;
+      --session)  session="$2"; shift 2 ;;
+      --title)    title="$2"; shift 2 ;;
+      --marks)    marks="$2"; shift 2 ;;
+      --no-raw)   keep_raw=0; shift ;;
+      --reset)    reset_cmd="$2"; shift 2 ;;
+      --)         shift; break ;;
+      *)          die "unknown take option: $1" ;;
+    esac
+  done
+  [ -n "$driver" ] || die "take needs --driver"
+  [ -n "$out" ] || die "take needs --out"
+  [ $# -gt 0 ] || die "take needs the command to record, after --"
+  [ -x "$driver" ] || die "driver is not executable: $driver"
+  need tmux; need asciinema
+  : "${marks:=${out%.cast}.marks}"
+
+  # The command is handed over through a launcher file instead of being
+  # quoted into tmux's command string, which asciinema would then re-quote
+  # into a shell of its own: two levels of quoting nobody wins.
+  local launcher; launcher=$(mktemp "${TMPDIR:-/tmp}/tui-record-launch.XXXXXX")
+  { printf '#!/usr/bin/env bash\nexec '; printf '%q ' "$@"; printf '\n'; } > "$launcher"
+  chmod +x "$launcher"
+  trap 'rm -f "$launcher"' RETURN
+
+  local attempt
+  for attempt in $(seq 1 "$retries"); do
+    [ -n "$reset_cmd" ] && { sh -c "$reset_cmd" || die "--reset command failed"; }
+    tmux kill-session -t "$session" 2>/dev/null
+    rm -f "$out"
+    tmux new-session -d -s "$session" -x "$cols" -y "$rows" \
+      "asciinema rec -q --overwrite -e TERM ${title:+-t $(printf %q "$title")} \
+         -c $(printf %q "$launcher") $(printf %q "$out"); sleep 4"
+
+    sleep "$settle"
+    if ! tmux has-session -t "$session" 2>/dev/null; then
+      note "take $attempt: the terminal died while the app was starting — retrying"
+      continue
+    fi
+
+    if ! TUI_SESSION="$session" TUI_MARKS="$marks" "$driver"; then
+      note "take $attempt: a beat was lost — retrying"
+      tmux kill-session -t "$session" 2>/dev/null
+      continue
+    fi
+
+    # asciinema só fecha o arquivo ao sair, e o pane ainda vive alguns
+    # segundos depois disso.
+    local _
+    for _ in $(seq 1 25); do
+      [ -s "$out" ] && ! tmux has-session -t "$session" 2>/dev/null && break
+      sleep 1
+    done
+    if [ -s "$out" ]; then
+      [ "$keep_raw" -eq 1 ] && cp "$out" "${out%.cast}.raw.cast"
+      note "take $attempt: recorded ($(cast_duration "$out")s)"
+      return 0
+    fi
+    note "take $attempt: no cast came out — retrying"
+  done
+  die "all $retries attempts failed"
+}
+
+cast_duration() {
+  python3 -c '
+import json, sys
+lines = open(sys.argv[1]).read().splitlines()
+print(f"{json.loads(lines[-1])[0]:.0f}" if len(lines) > 1 else "0")
+' "$1"
+}
+
+# ── check ────────────────────────────────────────────────────────────────
+
+cmd_check() {
+  local cast="${1:-}"; shift || true
+  [ -f "$cast" ] || die "check needs an existing cast"
+  local extra=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --forbid) extra+=("$2"); shift 2 ;;
+      *) die "unknown check option: $1" ;;
+    esac
+  done
+  python3 - "$cast" "$USER" "$HOME" "$(hostname 2>/dev/null || echo localhost)" "${extra[@]+"${extra[@]}"}" <<'PY'
+import json, re, sys
+
+cast, user, home, host, *extra = sys.argv[1:]
+lines = open(cast, encoding="utf-8", errors="replace").read().splitlines()
+header = json.loads(lines[0])
+body = "\n".join(lines[1:])
+
+print(f"size      : {header.get('width')}x{header.get('height')}")
+print(f"duration  : {json.loads(lines[-1])[0]:.0f}s over {len(lines) - 1} events")
+print(f"env kept  : {header.get('env', {})}")
+
+# Anything that identifies the machine or the account is a leak: a video is
+# published, and a terminal shows more of a home directory than anyone means
+# to share.
+patterns = [
+    ("username", re.escape(user)),
+    ("home", re.escape(home)),
+    ("hostname", re.escape(host)),
+    ("session url", r"session_[A-Za-z0-9]{16,}"),
+    ("sk- style token", r"sk-[A-Za-z0-9_\-]{16,}"),
+    ("bearer", r"[Bb]earer\s+[A-Za-z0-9._\-]{16,}"),
+    ("private key", r"BEGIN [A-Z ]*PRIVATE KEY"),
+    ("private ip", r"\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+\b"),
+]
+patterns += [(f"--forbid {p}", p) for p in extra]
+
+worst = 0
+for label, pattern in patterns:
+    hits = len(re.findall(pattern, body))
+    if hits:
+        worst = 1
+        print(f"  ✕ {label}: {hits} occurrence(s)")
+print("  ✓ nothing identifying found" if not worst else
+      "\nredact before publishing: tui-record redact <cast> --pattern '<regex>'")
+sys.exit(worst)
+PY
+}
+
+# ── redact ───────────────────────────────────────────────────────────────
+
+cmd_redact() {
+  local cast="${1:-}"; shift || true
+  [ -f "$cast" ] || die "redact needs an existing cast"
+  local patterns=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --pattern) patterns+=("$2"); shift 2 ;;
+      *) die "unknown redact option: $1" ;;
+    esac
+  done
+  [ "${#patterns[@]}" -gt 0 ] || die "redact needs at least one --pattern"
+  python3 - "$cast" "${patterns[@]}" <<'PY'
+import re, sys
+
+cast, *patterns = sys.argv[1:]
+text = open(cast, encoding="utf-8", errors="replace").read()
+# Same length, so nothing on screen reflows: a redaction that shortens a
+# string moves every glyph after it on that row.
+for pattern in patterns:
+    text, n = re.subn(pattern, lambda m: "x" * len(m.group(0)), text)
+    print(f"{pattern}: {n} substitution(s)")
+open(cast, "w", encoding="utf-8").write(text)
+PY
+}
+
+# ── compress ─────────────────────────────────────────────────────────────
+
+cmd_compress() {
+  local cast="${1:-}"; shift || true
+  [ -f "$cast" ] || die "compress needs an existing cast"
+  local marks="" span=1.5 head=0.0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --marks) marks="$2"; shift 2 ;;
+      --span)  span="$2"; shift 2 ;;
+      --head)  head="$2"; shift 2 ;;
+      *) die "unknown compress option: $1" ;;
+    esac
+  done
+  : "${marks:=${cast%.cast}.marks}"
+  [ -f "$marks" ] || die "no marks file at: $marks"
+  python3 - "$cast" "$marks" "$span" "$head" <<'PY'
+import json, sys
+
+cast_path, marks_path, span_target, head_target = sys.argv[1:5]
+span_target, head_target = float(span_target), float(head_target)
+
+lines = open(cast_path, encoding="utf-8", errors="replace").read().splitlines()
+header = json.loads(lines[0])
+t0 = float(header["timestamp"])
+
+marks = {}
+for line in open(marks_path):
+    parts = line.split()
+    if len(parts) == 2:
+        marks[parts[0]] = float(parts[1]) - t0
+
+# Every *_start/*_end pair is a stretch where the video was only waiting.
+spans = sorted(
+    (marks[k], marks[k[: -len("_start")] + "_end"])
+    for k in marks
+    if k.endswith("_start") and k[: -len("_start")] + "_end" in marks
+)
+head = max(marks.get("driver_start", 0.0) - 0.6, 0.0)
+
+def squeeze(t):
+    """t with every over-long wait span shrunk to span_target."""
+    out = t
+    for start, end in spans:
+        if t <= start:
+            break
+        length = end - start
+        if length <= span_target:
+            continue
+        out -= (t - start) * (1 - span_target / length) if t < end else length - span_target
+    return out
+
+# The startup collapses to a single instant. Its events are KEPT, never
+# dropped: they carry the terminal's first full paint, and a player that
+# never receives it draws the whole take onto a blank screen.
+head_at = squeeze(head)
+
+def remap(t):
+    return head_target if t < head else squeeze(t) - head_at + head_target
+
+out = [lines[0]]
+for line in lines[1:]:
+    t, kind, data = json.loads(line)
+    out.append(json.dumps([round(remap(t), 6), kind, data]))
+open(cast_path, "w", encoding="utf-8").write("\n".join(out) + "\n")
+
+before = json.loads(lines[-1])[0]
+after = json.loads(out[-1])[0]
+for start, end in spans:
+    print(f"wait of {end - start:.1f}s -> {min(end - start, span_target):.1f}s")
+print(f"startup of {head:.1f}s collapsed")
+print(f"{before:.0f}s → {after:.0f}s")
+PY
+}
+
+# ── render ───────────────────────────────────────────────────────────────
+
+cmd_render() {
+  local cast="${1:-}" out="${2:-}"; shift 2 2>/dev/null || true
+  [ -f "$cast" ] || die "render needs an existing cast"
+  [ -n "$out" ] || die "render needs an output file"
+  need agg
+  local bg="0a0c0d" fg="e2e4e6" speed=1.0 font=14 idle=1.5 palette=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --bg)        bg="${2#\#}"; shift 2 ;;
+      --fg)        fg="${2#\#}"; shift 2 ;;
+      --speed)     speed="$2"; shift 2 ;;
+      --font-size) font="$2"; shift 2 ;;
+      --idle)      idle="$2"; shift 2 ;;
+      --palette)   palette="$2"; shift 2 ;;
+      *) die "unknown render option: $1" ;;
+    esac
+  done
+  # agg paints the frame's padding in the theme's background, so a theme
+  # that isn't the app's own background shows up as a border in a colour the
+  # app never uses. Match it to what the app actually paints.
+  : "${palette:=15181a,e06c75,98c379,e5c07b,61afef,c678dd,56b6c2,abb2bf,4b5263,f07178,b5e890,f0d399,7cc4ff,d7a3ea,7fdbd4,f2f4f6}"
+  agg --theme "$bg,$fg,$palette" --font-size "$font" --speed "$speed" \
+      --idle-time-limit "$idle" "$cast" "$out" >/dev/null 2>&1 \
+    || die "agg failed"
+  local size; size=$(du -h "$out" | cut -f1)
+  local secs=""
+  command -v ffprobe >/dev/null 2>&1 &&
+    secs=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out" 2>/dev/null)
+  note "$out — $size${secs:+, ${secs%.*}s}"
+}
+
+# ── main ─────────────────────────────────────────────────────────────────
+
+usage() {
+  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+case "${1:-}" in
+  doctor)   shift; cmd_doctor "$@" ;;
+  take)     shift; cmd_take "$@" ;;
+  check)    shift; cmd_check "$@" ;;
+  redact)   shift; cmd_redact "$@" ;;
+  compress) shift; cmd_compress "$@" ;;
+  render)   shift; cmd_render "$@" ;;
+  ""|-h|--help|help) usage ;;
+  *) die "unknown subcommand: $1" ;;
+esac
