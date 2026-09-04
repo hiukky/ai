@@ -38,9 +38,9 @@ entry doesn't reimplement its skill, it just points the harness at it.
 ### `openspec`
 
 Personal engineering standard, portable across projects: **OpenSpec**
-(proposal/specs/design/tasks) extended with an optional **ADR** artifact
-for durable, hard-to-reverse decisions, plus **LikeC4** for living
-architecture diagrams.
+(proposal/specs/design/tasks) with **ADRs** formalized at archive time
+for durable, hard-to-reverse decisions that held up through
+implementation, plus **LikeC4** for living architecture diagrams.
 
 ```
 init (user-only)  Apply the standard to a new or existing project

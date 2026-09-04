@@ -1,10 +1,11 @@
 ---
 name: init
 description: >-
-  Apply the personal engineering standard to this project - OpenSpec (with an
-  optional ADR artifact) + LikeC4 architecture diagrams. Works on a new
-  (empty/near-empty) or an existing project. Deliberate, one-time bootstrap:
-  human-invoked only; not meant to be auto-discovered by the model.
+  Apply the personal engineering standard to this project - OpenSpec (with
+  ADRs formalized at archive time) + LikeC4 architecture diagrams. Works on
+  a new (empty/near-empty) or an existing project. Deliberate, one-time
+  bootstrap: human-invoked only; not meant to be auto-discovered by the
+  model.
 invoke:
   model: false
   user: true
@@ -13,12 +14,13 @@ invoke:
 # Init (bootstrap this project's standard)
 
 Wire this project to follow the standard: **OpenSpec** drives "what are we
-changing now" (proposal/specs/design/tasks), an optional **ADR** artifact
-inside that same OpenSpec flow captures "why is the system this way" for
-decisions durable enough to deserve a permanent record, and **LikeC4**
-models "how is the system organized" as a living, diagrammable source of
-truth. Safe to re-run - every step below is idempotent (checks before
-writing, never blindly overwrites existing content).
+changing now" (proposal/specs/design/tasks), an **ADR** formalized when a
+change is archived captures "why is the system this way" for decisions
+that held up through implementation and are durable enough to deserve a
+permanent record, and **LikeC4** models "how is the system organized" as a
+living, diagrammable source of truth. Safe to re-run - every step below is
+idempotent (checks before writing, never blindly overwrites existing
+content).
 
 ## 0. Resolve the plugin's own root
 
@@ -87,9 +89,8 @@ This is safe to re-run (e.g. after the plugin itself gets updated) - it
 always overwrites `openspec/schemas/adr-driven/` with the plugin's
 current bundled version, since that directory is meant to mirror the
 plugin, not to be hand-edited per project. If the project needs
-project-specific schema tweaks beyond the `adr` artifact, that's a
-reason to fork this schema again under a different name, not to edit
-`adr-driven` in place.
+project-specific schema tweaks, that's a reason to fork this schema
+again under a different name, not to edit `adr-driven` in place.
 
 ## 4. OpenSpec: make it the project default
 
@@ -100,12 +101,13 @@ happen after `openspec init`, but just in case), add one at the top.
 
 ## 5. OpenSpec: merge the standing rules
 
-Read `$PLUGIN_ROOT/resources/openspec/config-rules.md` - it has two
+Read `$PLUGIN_ROOT/resources/openspec/config-rules.md` - it has three
 blocks: text to append to `openspec/config.yaml`'s `context:` (only if
-not already saying something equivalent) and YAML to merge into its
+not already saying something equivalent), YAML to merge into its
 `rules:` key (create `rules:` if absent; if it already has `design`
 and/or `tasks` lists, append these entries to them rather than
-replacing).
+replacing), and YAML to merge into its `operations:` key (same merge
+behavior, for the `archive` guidance that formalizes ADRs).
 
 ## 6. ADR: scaffold `docs/adr/`
 
@@ -120,7 +122,9 @@ cp "$PLUGIN_ROOT/resources/docs/adr-readme.md" docs/adr/README.md
 ```
 
 Do not create any numbered ADR files here - those come from real
-decisions (via the OpenSpec `adr` artifact or the `adr` skill), not from init.
+decisions, formalized when an OpenSpec change is archived (via the
+`operations.archive` guidance) or recorded ad hoc via the `adr` skill,
+not from init.
 
 ## 7. LikeC4: scaffold `docs/architecture/likec4/`
 
@@ -174,6 +178,7 @@ expects (add what's missing, don't remove custom elements already there).
 
 Summarize what was created vs. already present vs. updated, and remind
 the user of the next steps: `openspec new change <name>` for the next
-piece of work (now producing an optional `adr` artifact alongside
-design.md), and the arch:* commands (or raw `bunx likec4@latest ...`) to
+piece of work (flag candidate ADRs in design.md's `## Candidate ADRs`
+note; they get formalized under `docs/adr/` when the change is archived),
+and the arch:* commands (or raw `bunx likec4@latest ...`) to
 preview the architecture model.

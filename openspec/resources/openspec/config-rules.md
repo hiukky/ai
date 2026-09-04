@@ -2,7 +2,7 @@
 
 The `init` skill merges these into the project's `openspec/config.yaml` (append
 to `context:` if the block doesn't already say something equivalent; merge
-into `rules:` rather than overwriting any existing rules).
+into `rules:` and `operations:` rather than overwriting any existing entries).
 
 ## Append to `context:`
 
@@ -15,9 +15,9 @@ per project - check package.json/justfile/Makefile).
 
 Architecture decisions: significant, hard-to-reverse decisions get a
 numbered ADR under docs/adr/ (Nygard style: Context/Decision/
-Consequences), generated via the `adr` artifact in the OpenSpec schema
-(optional, only when a change's design.md contains a qualifying
-decision) or recorded ad hoc with the `adr` skill.
+Consequences). Formalized at archive time (see `operations.archive`
+below) for a decision flagged in a change's design.md that held up
+through implementation, or recorded ad hoc with the `adr` skill.
 ```
 
 ## Set/merge `rules:`
@@ -31,16 +31,47 @@ rules:
       change (not a follow-up), and note the update in this design doc.
     - If this change makes an architecturally significant, hard-to-reverse
       decision (new external dependency, irreversible technology choice,
-      a pattern costly to change later), flag it here for the `adr`
-      artifact - don't duplicate the full write-up.
+      a pattern costly to change later), flag it under a `## Candidate
+      ADRs` note (title + one-line why) - don't write the full ADR now,
+      the design can still change while the change is in flight.
   tasks:
     - If design.md notes a required LikeC4 model update, include a task
       for it that runs the project's arch-validate script before
       considering the change done.
-    - If the `adr` artifact produced entries, include a task confirming
-      the matching docs/adr/NNN-*.md file(s) exist.
 ```
 
-If the project's `openspec/config.yaml` already has a `rules:` key, merge
-these entries into the existing `design`/`tasks` lists rather than
-replacing them.
+## Set/merge `operations:`
+
+```yaml
+operations:
+  archive:
+    guidance:
+      - Before moving the change, check design.md's `## Candidate ADRs`
+        note (if any) for decisions that are still architecturally
+        significant AND hard to reverse now that implementation is done -
+        a new external dependency, a technology/pattern choice with
+        long-term consequences, a boundary expensive to move later. Judge
+        by what was actually built, not what was originally flagged - if
+        the approach changed along the way, a flagged decision may no
+        longer apply, and an unflagged one may now qualify.
+      - For each qualifying decision, write one ADR: list existing
+        `docs/adr/NNN-*.md` files, take the next sequential number
+        (3 digits, zero-padded, continuing the existing sequence), and
+        create `docs/adr/<NNN>-<kebab-title>.md` in Nygard style (Context
+        is the situation forcing a choice, Decision is what was chosen
+        stated firmly, Consequences covers what becomes easier/harder
+        including trade-offs accepted), with a trailing line `Source
+        change: openspec/changes/<change-name>/`. This file is the
+        permanent record - it is not moved or deleted when the change is
+        archived.
+      - If nothing clears the bar, create no ADR files and say so - most
+        changes don't warrant one.
+      - If a decision here reverses or supersedes an existing ADR, do not
+        edit that file's Decision retroactively - write a new ADR instead
+        and add `Status: Superseded by docs/adr/<NNN>-<new-title>.md` to
+        the old file.
+```
+
+If the project's `openspec/config.yaml` already has a `rules:` and/or
+`operations:` key, merge these entries into the existing lists rather
+than replacing them.
