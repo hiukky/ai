@@ -46,7 +46,7 @@
     {
       "name": "env",
       "source": "./env",
-      "description": "Machine and environment management through dotfiles: the chezmoi source directory is the source of truth, so installing a tool or changing a config means writing the lane and applying it, and a sync check answers all four axes - machine, source, remote, and what was never provisioned at all.",
+      "description": "Machine and environment management through dotfiles: a machine is a build product of its chezmoi source directory, so installing a tool or changing a config means writing it there and applying, never by hand. Reads the setup's own lanes and conventions instead of assuming a package manager, and answers \"is it in sync?\" on all four axes - machine, source, remote, and what was never provisioned at all.",
       "keywords": [
         "dotfiles",
         "chezmoi",

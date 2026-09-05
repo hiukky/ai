@@ -154,7 +154,7 @@
     },
     {
       "name": "env",
-      "description": "Machine and environment management through dotfiles: the chezmoi source directory is the source of truth, so installing a tool or changing a config means writing the lane and applying it, and a sync check answers all four axes - machine, source, remote, and what was never provisioned at all.",
+      "description": "Machine and environment management through dotfiles: a machine is a build product of its chezmoi source directory, so installing a tool or changing a config means writing it there and applying, never by hand. Reads the setup's own lanes and conventions instead of assuming a package manager, and answers \"is it in sync?\" on all four axes - machine, source, remote, and what was never provisioned at all.",
       "manifestDescription": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it.",
       "keywords": [
         "dotfiles",
@@ -170,12 +170,12 @@
           "id": "sync",
           "name": "sync",
           "plugin": "env",
-          "description": "Keep the machine and its dotfiles repo the same thing - install and configure through the chezmoi source directory, never by hand. Use whenever someone asks to install or set up anything on the machine (a CLI, an apt package, a runtime, a font, a desktop app - \"instala o X\", \"poe o Y na maquina\", \"configura o Z\"), whenever a config file under $HOME needs changing, and whenever they ask whether the environment is in sync, what drifted, or why a fresh machine would not come out the same. Also use right after something was installed by hand, to write it back before it is forgotten. Machine-scoped - applies in any project, or in none.",
+          "description": "Keep a machine and its dotfiles repo the same thing - install and configure through the dotfiles source directory, never by hand. Use whenever someone asks to install or set up anything on their machine (a CLI, a package, a runtime, a font, a desktop app - \"instala o X\", \"poe o Y na maquina\", \"set this up\"), whenever a config file in the home directory needs changing, and whenever they ask whether the environment is in sync, what drifted, or why a fresh machine would not come out the same. Also use right after something was installed by hand, to write it back before it is forgotten. Machine-scoped - applies in any project, or in none.",
           "invoke": {
             "model": true,
             "user": true
           },
-          "compatibility": "chezmoi 2.x with its source directory on a git remote. Linux/WSL, with Windows-host steps shelling out through powershell.exe.",
+          "compatibility": "chezmoi 2.x with its source directory under version control. Any platform chezmoi runs on - the package managers, script names and numbering are read from the source directory being managed, never assumed by this skill.",
           "references": [],
           "scripts": [],
           "path": "env/skills/sync"
