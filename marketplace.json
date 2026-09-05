@@ -42,6 +42,20 @@
         "recording",
         "documentation"
       ]
+    },
+    {
+      "name": "env",
+      "source": "./env",
+      "description": "Machine and environment management through dotfiles: the chezmoi source directory is the source of truth, so installing a tool or changing a config means writing the lane and applying it, and a sync check answers all four axes - machine, source, remote, and what was never provisioned at all.",
+      "keywords": [
+        "dotfiles",
+        "chezmoi",
+        "environment",
+        "provisioning",
+        "wsl",
+        "machine",
+        "drift"
+      ]
     }
   ]
 }
