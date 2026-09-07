@@ -47,18 +47,31 @@ Short sections, in this order; drop a section rather than pad it:
 
 Never restate the diff, never paste logs; a reviewer reads the code for the how.
 
+## Assignee - always the author
+
+A PR/MR is opened **assigned to whoever authored it**, on every platform, without being asked: the assignee is who owns getting it merged, and an unassigned request has no owner. Reviewers are a separate field - assigning yourself never replaces requesting review.
+
+Set it at creation, never as a follow-up edit. Prefer the CLI's own "me" token; if the platform rejects it, resolve the authenticated username first and pass that:
+
+```bash
+gh pr create --assignee @me ...
+glab mr create --assignee @me ...          # if rejected: --assignee "$(glab api user --jq .username)"
+```
+
+The repo's convention wins where it has one (a rotation, a bot, a CODEOWNERS-driven assignment); assign yourself *as well* unless that convention says otherwise.
+
 ## Workflow
 
 1. Confirm the branch is up to date with the base: `git fetch origin && git rebase origin/main` (or merge, per repo convention). A PR opened behind its base is a PR that will conflict.
 2. Rename the branch to its gitflow name if it still carries a working name; push with `-u`.
 3. Run the repo's pre-push gates yourself before pushing (hooks may regenerate files - commit what they ask for).
-4. Open it with the platform CLI, body via heredoc:
+4. Open it with the platform CLI, assigned to yourself, body via heredoc:
    ```bash
-   gh pr create --base main --head feature/topic --title "feat(scope): description" --body "$(cat <<'EOF'
+   gh pr create --base main --head feature/topic --assignee @me --title "feat(scope): description" --body "$(cat <<'EOF'
    ...
    EOF
    )"
-   # GitLab: glab mr create --target-branch main --source-branch feature/topic --title "..." --description "..."
+   # GitLab: glab mr create --target-branch main --source-branch feature/topic --assignee @me --title "..." --description "..."
    ```
 5. Draft (`--draft`) while gates are still running; mark ready when green.
 6. After merge, delete the branch (remote and local) and any worktree that used it.
@@ -69,3 +82,4 @@ Never restate the diff, never paste logs; a reviewer reads the code for the how.
 - Don't title a PR with the branch name, a ticket id, or a sentence ("Fixes the hooks stuff").
 - Don't force-push a branch that has reviews in flight without saying so in the PR.
 - Don't merge yourself unless the repo's convention says the author merges; leave it to review.
+- Don't leave a PR/MR unassigned, and don't hardcode a username where the CLI's "me" token or the authenticated user will do.
