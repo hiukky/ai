@@ -23,13 +23,22 @@ it stays while the work is in flight.
 `design.md` carries a `## Candidate ADRs` note: decisions made along the way
 that *might* deserve a permanent record. They are not written as ADRs yet,
 because a decision that dissolves during implementation was never an
-architecture decision. It was a plan.
+architecture decision. It was a plan. Its counterpart during implementation is
+the change's `decisions.md` — what the task list did not decide for you, with
+the alternative you rejected and the commit that holds it.
 
-When the change is archived, the `operations.archive` guidance formalizes the
-candidates that **held up through implementation** into real ADRs under
-`docs/adr/`. Nygard style: Context, Decision, Consequences. Numbered
-sequentially, never renumbered, never edited to say something else. A reversal
-becomes a new ADR and the old one gets `Status: Superseded by …`.
+When the change is archived, the `operations.archive` guidance reads both, and
+starts from **no ADR**. A candidate earns a record only if all four are yes:
+reversing it is expensive, a real alternative was rejected, it binds code that
+does not exist yet, and it is not already recorded somewhere with an owner.
+Naming, layout, refactors, bug fixes, performance tuning, version bumps and
+test strategy never qualify, however long they were argued. Most changes
+produce no ADR at all — an ADR set that grows with every archive is a set
+nobody reads.
+
+What does qualify is written Nygard style: Context, Decision, Consequences.
+Numbered sequentially, never renumbered, never edited to say something else. A
+reversal becomes a new ADR and the old one gets `Status: Superseded by …`.
 
 LikeC4 sits alongside, modelling the system rather than the change: actors,
 systems, containers, components in `model.c4`, diagrams in `views.c4`, the
@@ -56,9 +65,21 @@ deliberate, one-time act of adopting a standard, and "the user mentioned
 specs" is not consent to restructure their repository. So the model cannot
 reach for it; a person invokes it by name or it does not run.
 
-`adr`, by contrast, keeps the default policy on purpose: the whole value of an
-ADR habit is that decisions get recorded when they are made, and a skill that
-only fires when someone remembers to ask is a skill that records nothing.
+`adr` keeps the default policy, but it is the out-of-band path, not a second
+routine door: it writes a record when you ask for one, or backfills a decision
+that predates the convention. It never decides on its own that something
+deserves an ADR — that judgement belongs at archive time, against what was
+actually built, where the four questions apply.
+
+`auto` is the `apply` phase with the human out of the loop. It works the task
+list to the end, verifying each item against an exit code rather than its own
+opinion, committing one item at a time, and writing down every decision the
+plan did not make. It stops for five things and nothing else: a destructive
+action outside the change, a step that would violate a spec, three failed
+hypotheses on one item, a credential or a leaked secret, and a discovery that
+kills the proposal's premise. Finishing a task is not on that list — the next
+unchecked box is already authorized. Autonomy is bought with the record: an
+agent that decides alone and writes nothing down is destroying information.
 
 ## Bundled resources
 

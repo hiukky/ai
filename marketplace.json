@@ -8,14 +8,16 @@
     {
       "name": "openspec",
       "source": "./openspec",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
       "keywords": [
         "openspec",
         "adr",
         "architecture-decision-records",
         "likec4",
         "architecture",
-        "standard"
+        "standard",
+        "autonomous",
+        "unattended"
       ]
     },
     {

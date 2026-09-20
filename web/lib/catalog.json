@@ -6,22 +6,24 @@
   "plugins": [
     {
       "name": "openspec",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
-      "manifestDescription": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) extended with optional ADRs for durable, hard-to-reverse decisions, plus LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "manifestDescription": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
       "keywords": [
         "openspec",
         "adr",
         "architecture-decision-records",
         "likec4",
         "architecture",
-        "standard"
+        "standard",
+        "autonomous",
+        "unattended"
       ],
       "skills": [
         {
           "id": "adr",
           "name": "adr",
           "plugin": "openspec",
-          "description": "Record an Architecture Decision Record (ADR) under docs/adr/ - proactively, when a decision made during other work clears the bar (a new external dependency, a technology/pattern choice with long-term consequences, a boundary expensive to move later), not only when explicitly asked via the `adr` skill. Also use to backfill a past decision that predates this project's docs/adr/ convention. Requires the project to have already run the `init` skill (docs/adr/ must exist).",
+          "description": "Record one Architecture Decision Record under docs/adr/ when the user asks for it, or to backfill a past decision that predates this project's docs/adr/ convention. ADRs in the normal flow are written at archive time, not here - this skill is the out-of-band path, not a second routine door. Requires the project to have already run the `init` skill (docs/adr/ must exist).",
           "invoke": {
             "model": true,
             "user": true
@@ -30,6 +32,20 @@
           "references": [],
           "scripts": [],
           "path": "openspec/skills/adr"
+        },
+        {
+          "id": "auto",
+          "name": "auto",
+          "plugin": "openspec",
+          "description": "Work an OpenSpec change's tasks.md to completion without stopping for approval - deciding alone when the plan runs out, recording each decision for review afterwards, and interrupting only on a closed list of conditions. Use when a change should be implemented unattended - \"implementa sozinho\", \"vai até o fim\", \"não me pergunta\", an overnight run, a long task list nobody is watching. Requires a project that ran the `init` skill and a change with a tasks.md.",
+          "invoke": {
+            "model": true,
+            "user": true
+          },
+          "compatibility": null,
+          "references": [],
+          "scripts": [],
+          "path": "openspec/skills/auto"
         },
         {
           "id": "init",
@@ -58,6 +74,7 @@
         "openspec/config-rules.md",
         "openspec/schema/schema.yaml",
         "openspec/schema/templates/adr.md",
+        "openspec/schema/templates/decisions.md",
         "openspec/schema/templates/design.md",
         "openspec/schema/templates/proposal.md",
         "openspec/schema/templates/spec.md",

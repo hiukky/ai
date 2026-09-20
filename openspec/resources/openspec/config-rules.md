@@ -13,11 +13,15 @@ views, `.c4` files) - this is the structured, diagrammable source of
 truth. Validate with `<pkg-runner> arch:validate` (script name may differ
 per project - check package.json/justfile/Makefile).
 
-Architecture decisions: significant, hard-to-reverse decisions get a
-numbered ADR under docs/adr/ (Nygard style: Context/Decision/
-Consequences). Formalized at archive time (see `operations.archive`
-below) for a decision flagged in a change's design.md that held up
-through implementation, or recorded ad hoc with the `adr` skill.
+Architecture decisions: the default is NO ADR - most changes, including
+most good ones, produce none. A significant, hard-to-reverse decision
+gets a numbered ADR under docs/adr/ (Nygard style: Context/Decision/
+Consequences) only at archive time (see `operations.archive` below),
+for a decision flagged in a change's design.md or recorded in its
+decisions.md that held up through implementation. See docs/adr/README.md
+for the four questions that gate it and the list of what never
+qualifies. The `adr` skill records one outside that flow only when
+asked, or to backfill a decision predating this convention.
 ```
 
 ## Set/merge `rules:`
@@ -33,7 +37,11 @@ rules:
       decision (new external dependency, irreversible technology choice,
       a pattern costly to change later), flag it under a `## Candidate
       ADRs` note (title + one-line why) - don't write the full ADR now,
-      the design can still change while the change is in flight.
+      the design can still change while the change is in flight. Flagging
+      is cheap and the archive re-judges it, but flag a decision, not
+      every choice: a naming or layout call, a refactor, a test strategy
+      or a dependency version bump never becomes an ADR and does not
+      belong in this note.
   tasks:
     - If design.md notes a required LikeC4 model update, include a task
       for it that runs the project's arch-validate script before
@@ -46,14 +54,43 @@ rules:
 operations:
   archive:
     guidance:
-      - Before moving the change, check design.md's `## Candidate ADRs`
-        note (if any) for decisions that are still architecturally
-        significant AND hard to reverse now that implementation is done -
-        a new external dependency, a technology/pattern choice with
-        long-term consequences, a boundary expensive to move later. Judge
-        by what was actually built, not what was originally flagged - if
-        the approach changed along the way, a flagged decision may no
-        longer apply, and an unflagged one may now qualify.
+      - Before moving the change, read BOTH sources of candidate
+        decisions: design.md's `## Candidate ADRs` note (decisions known
+        before implementing) and decisions.md (decisions taken during
+        implementation). Judge by what was actually built, not by what
+        was originally flagged - if the approach changed along the way, a
+        flagged decision may no longer apply, and an unflagged one may
+        now qualify.
+      - Start from NO ADR and make each candidate earn one. It qualifies
+        only if all four are yes, answered out loud in this discussion,
+        not in your head: (1) is reversing it expensive - if undoing it
+        is a refactor one change could carry, it is not an ADR; (2) was a
+        real alternative rejected - a Decision with no contender is a
+        description, and descriptions belong in the architecture docs or
+        the code; (3) does it bind code that does not exist yet - a
+        choice constraining only what is already written is history, and
+        the archive is what history is for; (4) is it unrecorded
+        elsewhere - a rule a test enforces, a boundary AGENTS.md states
+        or a relationship a diagram draws already has a home.
+      - These never qualify, however long they were debated: a naming or
+        vocabulary choice, a file or module layout, a refactor, a bug fix
+        however subtle, a performance tuning, a dependency version bump,
+        a test strategy, a UI arrangement, or a decision that only
+        restates a principle an existing ADR already holds. Fold the
+        reasoning into the change's own design.md - it is archived with
+        the change and stays findable.
+      - If the Decision needs more than a short paragraph to state, it is
+        probably two decisions or none. Split it or drop it.
+      - If a qualifying decision continues an existing ADR rather than
+        reversing it - the same decision refined or extended - fold it
+        into that record instead of taking a new number, so one topic
+        stays one ADR.
+      - Every decisions.md entry must be resolved before the change is
+        archived: `accepted` entries are the ADR candidates above,
+        `overturned` ones must already have their follow-up work in
+        tasks.md, and an entry still `pending` means the change is not
+        ready to archive - say so and stop rather than archiving an
+        unreviewed decision.
       - For each qualifying decision, write one ADR: list existing
         `docs/adr/NNN-*.md` files, take the next sequential number
         (3 digits, zero-padded, continuing the existing sequence), and
@@ -64,8 +101,9 @@ operations:
         change: openspec/changes/<change-name>/`. This file is the
         permanent record - it is not moved or deleted when the change is
         archived.
-      - If nothing clears the bar, create no ADR files and say so - most
-        changes don't warrant one.
+      - If nothing clears the bar, create no ADR files and say so. This
+        is the expected outcome, not a failure of the change: an ADR set
+        that grows with every archive is a set nobody reads.
       - If a decision here reverses or supersedes an existing ADR, do not
         edit that file's Decision retroactively - write a new ADR instead
         and add `Status: Superseded by docs/adr/<NNN>-<new-title>.md` to
