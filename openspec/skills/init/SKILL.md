@@ -18,33 +18,39 @@ changing now" (proposal/specs/design/tasks), an **ADR** formalized when a
 change is archived captures "why is the system this way" for decisions
 that held up through implementation and are durable enough to deserve a
 permanent record, and **Mermaid diagrams** under the project's architecture
-directory answer "how is the system organized". Safe to re-run - every step below is
+directory answer "how is the system organized". Implementation runs from
+`tasks.md` and records what it decided along the way, so a long run
+doesn't need somebody approving each step. Safe to re-run - every step below is
 idempotent (checks before writing, never blindly overwrites existing
 content).
 
 ## 0. Resolve the plugin's own root
 
-You need this to read the bundled resource files referenced below.
+You need this to read the bundled resource files referenced below. Don't
+assume a particular harness - resolve it by kind, in this order, and stop
+at the first that checks out.
 
-```bash
-echo "${CLAUDE_PLUGIN_ROOT:-unset}"
-```
+1. **A harness that exposes the running plugin's own directory** does it
+   through an environment variable:
 
-If that prints a real path, use it as `$PLUGIN_ROOT` for the rest of this
-command. If it prints `unset` or empty, fall back:
+   ```bash
+   env | grep -iE '_plugin_root=' || true
+   ```
 
-```bash
-python3 -c "
-import json
-d = json.load(open('$HOME/.claude/plugins/installed_plugins.json'))
-entries = d['plugins'].get('openspec@ai', [])
-print(entries[0]['installPath'] if entries else '')
-"
-```
+2. **The plugin manager's store or installed-plugin manifest**, for
+   whichever manager installed this plugin - the marketplace store
+   directory, or the harness's record of installed plugins. Look for the
+   `openspec` plugin from the `ai` marketplace (`hiukky/ai`).
 
-If that's also empty, ask the user where the `openspec` plugin (from the
-`ai` marketplace / `hiukky/ai` repo) is installed locally, and use that path.
-All paths below (`$PLUGIN_ROOT/resources/...`) assume you've resolved this.
+3. **Ask the user** where the plugin is installed locally.
+
+Whatever you get, **verify it before using it**: the candidate is the
+right directory only if `resources/openspec/schema/schema.yaml` exists
+under it. A path that doesn't have that file is the wrong plugin or the
+wrong root, and copying from it silently produces a broken project.
+
+All paths below (`$PLUGIN_ROOT/resources/...`) assume you've resolved
+this.
 
 ## 1. Detect project state
 
@@ -68,12 +74,20 @@ architecture diagrams yet.").
 
 If `openspec/` does not exist:
 
+Pick `--tools` from what this project actually uses, not from a default.
+`agents` writes `AGENTS.md`, the baseline every harness reads, so it
+belongs in the list either way; add the harness-specific entries for the
+agents this project is already set up for, detected from what is on disk
+(a harness-specific directory or config at the project root). Run
+`openspec init --help` for the accepted values.
+
 ```bash
-openspec init --tools claude
+openspec init --tools agents            # portable baseline only
+openspec init --tools agents,<harness>  # plus each harness this project uses
 ```
 
-(If the user's primary AI tool isn't Claude Code, ask which `--tools`
-value to use instead - see `openspec init --help`.)
+If nothing on disk says which harness is in use, ask rather than
+guessing - this writes files into the user's repo.
 
 If `openspec/` already exists, skip this - do not re-init.
 
@@ -112,6 +126,13 @@ and/or `tasks` lists, append these entries to them rather than
 replacing), and YAML to merge into its `operations:` key (same merge
 behavior, for the `archive` guidance that formalizes ADRs).
 
+The `context:` block ships with placeholders in angle brackets for what
+differs per project - where its architecture lives and which command
+checks it. **Substitute them with what this project actually uses before
+writing the block**, and drop a sentence rather than keep a placeholder
+you can't resolve. A literal `<...>` landing in a project's
+`config.yaml` is an instruction nobody can follow.
+
 ## 6. ADR: scaffold `docs/adr/`
 
 ```bash
@@ -125,9 +146,11 @@ cp "$PLUGIN_ROOT/resources/docs/adr-readme.md" docs/adr/README.md
 ```
 
 Do not create any numbered ADR files here - those come from real
-decisions, formalized when an OpenSpec change is archived (via the
-`operations.archive` guidance) or recorded ad hoc via the `adr` skill,
-not from init.
+decisions, and only at archive time (via the `operations.archive`
+guidance), judged against what was actually built. The `adr` skill is
+the out-of-band path for a decision made outside any change, or to
+backfill one that predates the convention; it is not a second routine
+door, and nothing about bootstrapping a project warrants an ADR.
 
 ## 7. Architecture: point the project at its diagrams
 
@@ -171,9 +194,15 @@ mkdir -p docs/architecture
 
 ## 8. Report
 
-Summarize what was created vs. already present vs. updated, and remind
-the user of the next steps: `openspec new change <name>` for the next
-piece of work (flag candidate ADRs in design.md's `## Candidate ADRs`
-note; they get formalized under `docs/adr/` when the change is archived),
-and the environment's own architecture check to confirm the diagrams
-still draw.
+Summarize what was created vs. already present vs. updated, then give the
+next steps:
+
+- `openspec new change <name>` for the next piece of work - flag candidate
+  ADRs in `design.md`'s `## Candidate ADRs` note; they are judged, with
+  the change's `decisions.md`, when the change is archived, and most
+  changes produce no ADR at all.
+- the `auto` skill to work a change's `tasks.md` through to the end
+  without stopping for approval, recording what it decided in that
+  change's `decisions.md` for review afterwards.
+- the environment's own architecture check, to confirm the diagrams still
+  draw.
