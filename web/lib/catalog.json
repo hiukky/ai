@@ -6,13 +6,13 @@
   "plugins": [
     {
       "name": "openspec",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
-      "manifestDescription": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "manifestDescription": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
       "keywords": [
         "openspec",
         "adr",
         "architecture-decision-records",
-        "likec4",
+        "mermaid",
         "architecture",
         "standard",
         "autonomous",
@@ -51,7 +51,7 @@
           "id": "init",
           "name": "init",
           "plugin": "openspec",
-          "description": "Apply the personal engineering standard to this project - OpenSpec (with ADRs formalized at archive time) + LikeC4 architecture diagrams. Works on a new (empty/near-empty) or an existing project. Deliberate, one-time bootstrap: human-invoked only; not meant to be auto-discovered by the model.",
+          "description": "Apply the personal engineering standard to this project - OpenSpec (with ADRs formalized at archive time) + Mermaid architecture diagrams. Works on a new (empty/near-empty) or an existing project. Deliberate, one-time bootstrap: human-invoked only; not meant to be auto-discovered by the model.",
           "invoke": {
             "model": false,
             "user": true
@@ -68,9 +68,6 @@
       ],
       "resources": [
         "docs/adr-readme.md",
-        "docs/likec4-starter/model.c4",
-        "docs/likec4-starter/specification.c4",
-        "docs/likec4-starter/views.c4",
         "openspec/config-rules.md",
         "openspec/schema/schema.yaml",
         "openspec/schema/templates/adr.md",

@@ -26,7 +26,7 @@ uze market add hiukky/ai
 
 | | Skills | |
 |---|---|---|
-| [`openspec`](openspec/) | `init` · `adr` | Spec-driven change workflow (proposal → specs → design → tasks), with ADRs formalized at archive time and LikeC4 for living diagrams |
+| [`openspec`](openspec/) | `init` · `auto` · `adr` | Spec-driven change workflow (proposal → specs → design → tasks), run unattended by `auto`, with ADRs written only at archive time and Mermaid diagrams kept current per change |
 | [`git`](git/) | `commit` · `pr` | [Conventional Commits](https://www.conventionalcommits.org/) and gitflow-named pull requests — committed proactively once a unit of work is done, not only when asked |
 | [`tui`](tui/) | `record` | A TUI turned into a demo video, generated from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in |
 | [`env`](env/) | `sync` | The machine as a build product of its dotfiles: a tool is installed by writing its lane in the chezmoi source and applying, never by hand, and "is it in sync?" is answered on all four axes |

@@ -167,8 +167,8 @@ wanted (own branch, no one else pulled it) before `git push
 - `fix(workspace): reject absolute paths in file write requests`
 - `fix(delivery): resolve dangling refs instead of failing the install`
 - `perf(marketplace): read from the local mirror instead of re-cloning`
-- `docs: point architecture overview at the likec4 model`
-- `chore: bump likec4 to 1.60`
+- `docs: point the architecture overview at the container diagram`
+- `chore: bump the mermaid renderer to 11.4`
 - `refactor(sandbox): extract memory-limit parsing into its own function`
 - `feat(api)!: require workspace_id on terminal connect`
 

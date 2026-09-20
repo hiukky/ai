@@ -8,12 +8,12 @@
     {
       "name": "openspec",
       "source": "./openspec",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and LikeC4 for living architecture diagrams. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
       "keywords": [
         "openspec",
         "adr",
         "architecture-decision-records",
-        "likec4",
+        "mermaid",
         "architecture",
         "standard",
         "autonomous",

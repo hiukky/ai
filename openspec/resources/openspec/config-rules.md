@@ -7,11 +7,19 @@ into `rules:` and `operations:` rather than overwriting any existing entries).
 ## Append to `context:`
 
 ```
-Architecture documentation: the system architecture is modeled in LikeC4
-(C4 model DSL) under docs/architecture/likec4/ (specification + model +
-views, `.c4` files) - this is the structured, diagrammable source of
-truth. Validate with `<pkg-runner> arch:validate` (script name may differ
-per project - check package.json/justfile/Makefile).
+Architecture documentation: the system architecture is drawn as Mermaid
+(`.mmd` / `.mermaid`) under <the project's declared architecture
+directory> - one file per view, no index. This is the diagrammable
+source of truth. Verify with <the environment's own artifact check>; a
+diagram can be valid and still fail to draw, or draw with relationships
+silently missing, so reading the file is not verification.
+
+  (When merging this block, substitute both placeholders with what this
+  project actually uses - the directory it declares and the command that
+  checks it. Under UZE that is `agents.yaml`'s `artifacts: path:` and
+  `uze agent artifacts check`; another environment will differ. If the
+  project has no such check, drop that sentence rather than inventing
+  one.)
 
 Architecture decisions: the default is NO ADR - most changes, including
 most good ones, produce none. A significant, hard-to-reverse decision
@@ -31,8 +39,10 @@ rules:
   design:
     - If this change adds/removes a container or component, adds an
       external dependency, or changes a relationship between them, update
-      the LikeC4 model under docs/architecture/likec4/ as part of this
-      change (not a follow-up), and note the update in this design doc.
+      the architecture diagrams as part of this change (not a follow-up),
+      and note the update in this design doc. Prefer editing the view
+      that already covers that altitude over adding a file; add one only
+      when no existing view is about the level your change touches.
     - If this change makes an architecturally significant, hard-to-reverse
       decision (new external dependency, irreversible technology choice,
       a pattern costly to change later), flag it under a `## Candidate
@@ -43,9 +53,10 @@ rules:
       or a dependency version bump never becomes an ADR and does not
       belong in this note.
   tasks:
-    - If design.md notes a required LikeC4 model update, include a task
-      for it that runs the project's arch-validate script before
-      considering the change done.
+    - If design.md notes a required diagram update, include a task for
+      it that runs the environment's architecture check before
+      considering the change done - the check is the gate, not a look at
+      the file.
 ```
 
 ## Set/merge `operations:`

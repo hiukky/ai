@@ -1,6 +1,6 @@
 ---
 title: openspec
-description: The engineering standard. OpenSpec for the change in flight, ADRs for decisions that outlive it, LikeC4 for how the system is organized
+description: The engineering standard. OpenSpec for the change in flight, ADRs for decisions that outlive it, Mermaid views for how the system is organized
 ---
 
 Three artifacts, each answering a different question, and none of them trying to
@@ -10,7 +10,7 @@ answer the other two.
 | --- | --- | --- |
 | **OpenSpec change** | *What are we changing right now?* | `openspec/changes/<name>/` |
 | **ADR** | *Why is the system this way?* | `docs/adr/NNN-*.md` |
-| **LikeC4 model** | *How is the system organized?* | `docs/architecture/likec4/` |
+| **Architecture diagrams** | *How is the system organized?* | the project's architecture directory |
 
 <PluginHeader name="openspec" />
 
@@ -40,10 +40,19 @@ What does qualify is written Nygard style: Context, Decision, Consequences.
 Numbered sequentially, never renumbered, never edited to say something else. A
 reversal becomes a new ADR and the old one gets `Status: Superseded by …`.
 
-LikeC4 sits alongside, modelling the system rather than the change: actors,
-systems, containers, components in `model.c4`, diagrams in `views.c4`, the
-element kinds in `specification.c4`. It is validated in CI-shaped commands
-(`arch:validate`) so the diagram cannot quietly stop matching the code.
+The architecture diagrams sit alongside, describing the system rather than the
+change: a handful of Mermaid views under one directory the project declares,
+one file per view and no index — the files are the list. A change that adds or
+removes a container, takes on an external dependency, or moves a relationship
+updates them *as part of that change*, never as a follow-up.
+
+The plugin owns **when** that happens, not how. Which view a change belongs in,
+which altitude to draw at, how to title it, how to link a box to the code it
+stands for — that belongs to whatever architecture skill the environment
+provides, and the diagram syntax is never written from memory: the renderer is
+the only authority on what draws. Verification is the environment's own check
+rather than a read of the file, because a diagram can be valid and still fail
+to draw, or draw with a relationship silently missing.
 
 ## The skills
 
@@ -57,8 +66,9 @@ element kinds in `specification.c4`. It is validated in CI-shaped commands
 It writes real scaffolding into a repository: runs `openspec init`, installs the
 `adr-driven` schema, rewrites `openspec/config.yaml`'s schema key, merges
 standing rules into its `context:` / `rules:` / `operations:` blocks, creates
-`docs/adr/` and `docs/architecture/likec4/`, and, for an existing project,
-*authors* a LikeC4 model by reading the codebase.
+`docs/adr/`, and points the project at its architecture directory. It scaffolds
+no placeholder diagrams: a view nobody updates is worse than a view nobody
+drew, because it still looks current.
 
 Every step is idempotent and checks before writing. But it is still a
 deliberate, one-time act of adopting a standard, and "the user mentioned
@@ -91,8 +101,6 @@ a different name.
 
 <PluginResources name="openspec" />
 
-The LikeC4 starter is different: `specification.c4` is copied verbatim because
-it is generic, while `model.c4` and `views.c4` are **structural references
-only**. `init` authors those from the actual project: for an existing
-codebase, by reading entry points, services and dependencies rather than
-guessing at internals.
+`decisions.md` is the one template that is not copied into a project at init:
+it belongs to a change, and `auto` creates it in that change's directory the
+first time a run has something to record.

@@ -6,8 +6,8 @@ parts of this repo:
 
 - `openspec/changes/` answers **"what are we changing now?"** (proposal,
   specs, design, tasks for one in-flight change).
-- `docs/architecture/likec4/` answers **"how is the system organized?"**
-  (the current structure, as a diagrammable model).
+- the project's architecture directory answers **"how is the system
+  organized?"** (the current structure, as Mermaid views).
 
 ## Format
 

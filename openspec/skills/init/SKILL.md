@@ -2,7 +2,7 @@
 name: init
 description: >-
   Apply the personal engineering standard to this project - OpenSpec (with
-  ADRs formalized at archive time) + LikeC4 architecture diagrams. Works on
+  ADRs formalized at archive time) + Mermaid architecture diagrams. Works on
   a new (empty/near-empty) or an existing project. Deliberate, one-time
   bootstrap: human-invoked only; not meant to be auto-discovered by the
   model.
@@ -17,8 +17,8 @@ Wire this project to follow the standard: **OpenSpec** drives "what are we
 changing now" (proposal/specs/design/tasks), an **ADR** formalized when a
 change is archived captures "why is the system this way" for decisions
 that held up through implementation and are durable enough to deserve a
-permanent record, and **LikeC4** models "how is the system organized" as a
-living, diagrammable source of truth. Safe to re-run - every step below is
+permanent record, and **Mermaid diagrams** under the project's architecture
+directory answer "how is the system organized". Safe to re-run - every step below is
 idempotent (checks before writing, never blindly overwrites existing
 content).
 
@@ -54,12 +54,15 @@ All paths below (`$PLUGIN_ROOT/resources/...`) assume you've resolved this.
   maybe a `.git/` - otherwise treat it as **existing**.
 - Check whether `openspec/` already exists.
 - Check whether `docs/adr/` already exists.
-- Check whether `docs/architecture/likec4/` already exists (and whether
-  it already has `.c4` files in it, vs just being an empty/absent dir).
+- Check where the project declares its architecture directory, and
+  whether it already holds diagrams. Resolve this from the environment
+  rather than assuming: read the project's agent-environment manifest if
+  it has one, then fall back to an existing `docs/architecture/`.
+  (Example - under UZE, `agents.yaml`'s `artifacts: path:` declares it.)
 
 Report this detected state to the user in one short line before
 proceeding (e.g. "Existing project, no openspec/, no docs/adr/, no
-LikeC4 model yet.").
+architecture diagrams yet.").
 
 ## 2. OpenSpec: init if missing
 
@@ -126,53 +129,45 @@ decisions, formalized when an OpenSpec change is archived (via the
 `operations.archive` guidance) or recorded ad hoc via the `adr` skill,
 not from init.
 
-## 7. LikeC4: scaffold `docs/architecture/likec4/`
+## 7. Architecture: point the project at its diagrams
+
+The architecture is a handful of **Mermaid** views (`.mmd` / `.mermaid`)
+under one directory the project declares. Adding a file is the whole act
+of adding a diagram.
 
 ```bash
-mkdir -p docs/architecture/likec4
+mkdir -p docs/architecture
 ```
 
-If there are no `.c4` files in that directory yet:
-
-- Copy `$PLUGIN_ROOT/resources/docs/likec4-starter/specification.c4`
-  verbatim to `docs/architecture/likec4/specification.c4` - it's generic
-  (actor/system/container/component kinds), no project-specific content.
-- **Author** (don't copy verbatim) `docs/architecture/likec4/model.c4`
-  and `views.c4` for the actual project. Use
-  `$PLUGIN_ROOT/resources/docs/likec4-starter/model.c4` and `views.c4`
-  only as a structural reference (their content is a placeholder example
-  and says so in a comment).
-  - **New project**: usually just one actor and one system so far - that's
-    fine, expand it as the project grows.
-  - **Existing project**: read enough of the codebase (entry points,
-    services, obvious external dependencies) to model what's actually
-    there - containers for distinct deployable/runnable units, components
-    only where a container has real internal structure worth diagramming.
-    Don't guess at internals you haven't looked at.
-- Validate: `bunx likec4@latest validate docs/architecture/likec4` (or
-  `npx likec4@latest validate ...` if the project doesn't use Bun).
-
-If `.c4` files already exist there, leave the model alone - just make
-sure `specification.c4` has the four base element kinds this schema
-expects (add what's missing, don't remove custom elements already there).
-
-### Wiring `arch:dev` / `arch:validate` / `arch:build`
-
-- If the project has a `package.json`: add `likec4` as a dev dependency
-  and add these three scripts (adjust the runner - `bun`/`pnpm`/`npm`/
-  `yarn` - to match what the project already uses, detected from its
-  lockfile):
-  ```json
-  "arch:dev": "likec4 start docs/architecture/likec4",
-  "arch:validate": "likec4 validate docs/architecture/likec4",
-  "arch:build": "likec4 build docs/architecture/likec4 -o docs/architecture/likec4/dist"
-  ```
-  Also gitignore `docs/architecture/likec4/dist/`.
-- If the project has no JS/TS tooling at all (e.g. pure Rust/Go/Python),
-  don't add a package.json just for this. Instead, note in
-  `docs/architecture/overview.md` (or the README, if there's no such doc
-  yet) the raw commands: `bunx likec4@latest start|validate|build
-  docs/architecture/likec4 ...`.
+- **Declare the location** in whatever the environment uses to point at a
+  project's architecture, if it has such a mechanism and the project
+  hasn't declared one already. (Example - under UZE: `artifacts: path:
+  docs/architecture` in `agents.yaml`.) If the project already declares a
+  different directory, use that one and don't move it.
+- **Do not create an index.** No `README.md`, no list of diagrams - the
+  files are the list, and an index is wrong the moment somebody adds the
+  next diagram.
+- **Do not scaffold placeholder diagrams.** A view nobody updates is
+  worse than a view nobody drew, because it still looks current.
+  - **New project**: create none. Draw the first view when there is
+    something to draw.
+  - **Existing project**: at most one view of the system boundary,
+    authored from what you actually read in the codebase - plus a
+    container view only if the project genuinely has distinct runnable
+    or deployable units. Don't diagram internals you haven't looked at.
+- **Delegate the drawing.** If the environment provides an architecture
+  or diagramming skill, follow it for which view a change belongs in,
+  which altitude to draw at, how to title a diagram, and how to link a
+  box to the code it stands for. (Example - under UZE: the `architect`
+  skill.) Never write diagram syntax from memory, including from this
+  page: the renderer is the only authority on what draws, it moves, and
+  a remembered grammar diverges from it silently.
+- **Verify by running the environment's check**, not by reading the file
+  - a diagram can be valid and still fail to draw, or draw with
+  relationships silently missing. (Example - under UZE: `uze agent
+  artifacts check`, which exits non-zero and is a gate, not a report.)
+  If the environment offers no such check, say so plainly rather than
+  inventing a validation step.
 
 ## 8. Report
 
@@ -180,5 +175,5 @@ Summarize what was created vs. already present vs. updated, and remind
 the user of the next steps: `openspec new change <name>` for the next
 piece of work (flag candidate ADRs in design.md's `## Candidate ADRs`
 note; they get formalized under `docs/adr/` when the change is archived),
-and the arch:* commands (or raw `bunx likec4@latest ...`) to
-preview the architecture model.
+and the environment's own architecture check to confirm the diagrams
+still draw.
