@@ -676,7 +676,7 @@ def finish(spec: Spec) -> int:
     cast = spec.cast
     compress(cast, cast.with_suffix(".marks"),
              float(spec.video.get("wait_collapse", 1.5)))
-    if leaks(cast, spec.video.get("forbid", [])):
+    if leaks(cast, spec.video.get("forbid", []), spec.video.get("allow", [])):
         die("the cast still shows something identifying — redact before publishing", code=2)
     produced = {}
     if out := spec.out_path("out"):
@@ -794,23 +794,38 @@ LEAK_PATTERNS = [
 ]
 
 
-def leaks(cast: Path, extra: list) -> bool:
+def leaks(cast: Path, extra: list, allowed: list = ()) -> bool:
     """Not advisory: a video is published, and a terminal shows more of a home
-    directory than anyone means to share."""
+    directory than anyone means to share.
+
+    `allowed` is for what is *meant* to be on camera and happens to look like
+    a leak — a project's own published URL carrying the operator's login
+    name, say. A hit inside one of those spans is not a hit, and the number
+    excused is printed, so an allow list cannot quietly grow into the thing
+    it disables.
+    """
     lines = cast_lines(cast)
     header = json.loads(lines[0])
     body = "\n".join(lines[1:])
     say(f"{header.get('width')}x{header.get('height')}, {cast_duration(cast):.0f}s "
         f"over {len(lines) - 1} events, env {header.get('env', {})}")
+    spans = [match.span() for pattern in allowed
+             for match in re.finditer(pattern, body)]
     patterns = [("username", re.escape(os.environ.get("USER", "\0"))),
                 ("home", re.escape(str(Path.home()))),
                 ("hostname", re.escape(os.uname().nodename))] + LEAK_PATTERNS
     patterns += [(f"forbid {pattern}", pattern) for pattern in extra]
-    found = False
+    found, excused = False, 0
     for label, pattern in patterns:
-        if hits := len(re.findall(pattern, body)):
+        hits = [match.span() for match in re.finditer(pattern, body)]
+        inside = [hit for hit in hits
+                  if any(low <= hit[0] and hit[1] <= high for low, high in spans)]
+        excused += len(inside)
+        if remaining := len(hits) - len(inside):
             found = True
-            print(f"  ✕ {label}: {hits} occurrence(s)")
+            print(f"  ✕ {label}: {remaining} occurrence(s)")
+    if excused:
+        say(f"{excused} hit(s) inside an allowed span")
     print("  ✓ nothing identifying found" if not found else
           "\n  redact with: tui-record redact <cast> --pattern '<regex>'")
     return found
@@ -1116,6 +1131,7 @@ def main() -> int:
     check = sub.add_parser("check")
     check.add_argument("cast")
     check.add_argument("--forbid", action="append", default=[])
+    check.add_argument("--allow", action="append", default=[])
     redact = sub.add_parser("redact")
     redact.add_argument("cast")
     redact.add_argument("--pattern", action="append", required=True)
@@ -1127,7 +1143,7 @@ def main() -> int:
     if args.command == "init":
         return cmd_init(args.spec, args)
     if args.command == "check":
-        return 2 if leaks(Path(args.cast), args.forbid) else 0
+        return 2 if leaks(Path(args.cast), args.forbid, args.allow) else 0
     if args.command == "redact":
         return cmd_redact(args)
     if args.command == "doctor":
