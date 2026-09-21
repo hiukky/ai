@@ -126,6 +126,14 @@ carries: the status, the task it came from, the commit that holds it, what
 the task list failed to anticipate, what you decided, the alternative you
 rejected and why, and what reverting it would cost.
 
+An entry cannot know the sha of the commit that carries it - the sha does
+not exist until the commit does. Write the entry with the work, leave
+`commit:` empty, and fill it in the next commit that touches the file
+anyway; if the run ends before one comes, close it with a single
+housekeeping commit that pins the open entries. Don't split the work out of
+its commit to get the ordering you want: the revert point matters more than
+the field being filled first.
+
 **Ownership is split and neither side crosses it**: the agent writes
 entries and never touches `status`; the user writes `status` and never
 rewrites an entry. That keeps the file merge-safe across an unattended run

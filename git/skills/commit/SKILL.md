@@ -13,7 +13,7 @@ Every commit made with this skill follows [Conventional Commits](https://www.con
 Commit (and push, see below) on your own initiative once a coherent unit of work is genuinely finished - don't wait for the user to say "commit this." A unit of work is finished when **all** of these hold:
 
 - It's a complete, coherent step - a requested feature is implemented, a bug is fixed, a task from a checklist is done - not a half-written function or a "let me also just quickly..." detour mid-task.
-- It builds/typechecks, and any fast, relevant tests pass. Don't commit code you haven't verified works.
+- It builds/typechecks, and any fast, relevant tests pass. Don't commit code you haven't verified works. If the repo's own runner is broken for a reason your diff did not cause - a missing manifest, an unrelated red test, a toolchain that isn't installed - verify the change some other way you can state, commit it, and say in your report which check you could not run and why. Blocking finished work on somebody else's breakage helps nobody; quietly skipping the check and saying nothing is the thing to avoid.
 - The working tree doesn't mix this finished unit with unrelated in-progress changes (see splitting, below).
 
 Do **not** commit proactively when:

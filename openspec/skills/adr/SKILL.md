@@ -40,9 +40,13 @@ it clears the bar. Don't write the file first.
    that file wins over any summary, including this one. Read its Rules
    section, answer its four questions out loud, and check the decision
    against its list of what never qualifies. The default is no ADR. If it
-   doesn't clear the bar, create no file: say so, and say where the
-   reasoning belongs instead - the commit message, the change's
-   `design.md`, or its `decisions.md`.
+   doesn't clear the bar, create no file: say so, and name a home that
+   actually exists in *this* project. A change in flight has a `design.md`
+   and a `decisions.md`; a project with none has the commit message that
+   carried the work, and - if the decision is a rule new code must follow
+   rather than a one-off - the project's own agent instructions or style
+   guide. Pointing at a file the user does not have is the same as not
+   answering.
 
 3. Gather Context/Decision/Consequences. If backfilling a past decision,
    look at the actual code/commits/design docs involved rather than

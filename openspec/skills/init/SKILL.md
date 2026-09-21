@@ -57,17 +57,24 @@ found before you act on it.
 Only if `detect` said `openspec: absent`.
 
 Pick `--tools` from what the project actually uses, not from a default.
-`agents` writes `AGENTS.md`, the baseline every harness reads, so it belongs
-in the list either way; add the harness-specific entries `detect` found. Run
-`openspec init --help` for the accepted values.
+`agents` installs the shared OpenSpec skills under `.agents/skills/`, which
+any harness can read - on openspec 1.8.0 it writes no root `AGENTS.md` and
+prints `Commands skipped for: agents (no adapter)`, so don't go looking for
+one. It belongs in the list either way; add the harness-specific entries
+`detect` found. Run `openspec init --help` for the accepted values, and
+check what actually landed rather than trusting this paragraph - the CLI
+moves.
 
 ```bash
 openspec init --tools agents            # portable baseline only
 openspec init --tools agents,<harness>  # plus each harness this project uses
 ```
 
-If `detect` found no harness, ask rather than guessing - this writes files
-into the user's repo.
+If `detect` found no harness, install the baseline and *say* that no
+harness-specific surface was written, naming the one command that adds one
+later. Don't block the bootstrap on the question - the baseline is useful on
+its own, and a half-adopted standard is worse than one the user extends when
+they get round to it.
 
 ## 3. Install the schema, the ADR home, and the architecture directory
 
@@ -101,6 +108,19 @@ it. Substitute them with what `detect` reported, and drop a sentence rather
 than leave a placeholder you can't resolve. A literal `<...>` landing in a
 project's config is an instruction nobody can follow.
 
+When the merge is done, check that the file still parses:
+
+```bash
+"$SKILL_DIR/scripts/openspec-init" config
+```
+
+This is not ceremony. These blocks are prose, and several sentences carry a
+`": "` mid-line, which a YAML plain scalar cannot hold - that is why the
+resource ships every list item as a folded scalar (`- >-`) and why keeping
+that shape matters when you append. `openspec validate` will not save you
+here: it does not read `config.yaml`, so a broken merge passes with "No
+items found to validate" and the CLI is quietly blind from then on.
+
 ## 5. Architecture: one view, or none
 
 The directory exists now; what goes in it is a judgement.
@@ -122,9 +142,17 @@ it, and how to link a box to the code it stands for. (Example - under UZE:
 the `architect` skill, with `uze agent artifacts check` as the gate.) Never
 write diagram syntax from memory, including from this page: the renderer is
 the only authority on what draws, it moves, and a remembered grammar
-diverges from it silently. If the project declares where its architecture
-lives through some manifest and hasn't yet, set it to the directory `detect`
-reported.
+diverges from it silently.
+
+If no diagramming skill and no renderer exist here, that is not a deadlock -
+it means this project cannot yet check a diagram, so it should not have one.
+Create the directory, say plainly that nothing verifies a diagram in this
+environment, and leave the first view to whoever adds the renderer.
+
+If the project declares where its architecture lives through a manifest and
+has no such declaration yet, add one pointing at the directory `detect`
+reported; if there is no manifest at all, don't invent one for a project
+that doesn't use that tooling.
 
 ## 6. Report
 
