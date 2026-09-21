@@ -8,6 +8,7 @@ Personal hub for AI resources, published for other people to install — a **UZE
 marketplace.json     Catalog (same shape as UZE official marketplace)
 web/                 Documentation site (Fumadocs on Next.js) — see web/AGENTS.md
 <name>/
+  README.md           What the plugin is, its skills, and the boundary it keeps
   plugin.json         Manifest (Agent Plugins 1.0)
   skills/             Skill packages (agent-discoverable; invocation policy in frontmatter)
   agents/             Custom subagents (when present)

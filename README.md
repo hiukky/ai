@@ -5,8 +5,8 @@
 **Personal AI tooling. Portable by default.**
 
 [![Marketplace](https://img.shields.io/badge/uze-marketplace-8fd19e?style=flat-square&labelColor=1e1f20)](https://github.com/hiukky/uze)
-[![Plugins](https://img.shields.io/badge/plugins-3-7d97c9?style=flat-square&labelColor=1e1f20)](marketplace.json)
-[![Skills](https://img.shields.io/badge/skills-5-e0b567?style=flat-square&labelColor=1e1f20)](#plugins)
+[![Plugins](https://img.shields.io/badge/plugins-4-7d97c9?style=flat-square&labelColor=1e1f20)](marketplace.json)
+[![Skills](https://img.shields.io/badge/skills-7-e0b567?style=flat-square&labelColor=1e1f20)](#plugins)
 [![Spec](https://img.shields.io/badge/agent_plugins-1.0-a9a4c4?style=flat-square&labelColor=1e1f20)](https://agent-plugins.org)
 [![Docs](https://img.shields.io/badge/docs-web-e0b567?style=flat-square&labelColor=1e1f20)](web/)
 
