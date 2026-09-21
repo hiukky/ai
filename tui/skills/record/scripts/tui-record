@@ -795,6 +795,25 @@ def leaks(cast: Path, extra: list) -> bool:
     return found
 
 
+def unresolved(family: str) -> None:
+    """Say so when a declared font is not on this machine.
+
+    A missing family is not an error to the renderer: it falls through its
+    fallbacks and draws what it can, so the failure arrives as tofu in a
+    finished video rather than as a message. Checked per name, because a
+    list is only as good as its first entry that exists.
+    """
+    if not shutil.which("fc-match"):
+        return
+    for name in (part.strip() for part in family.split(",")):
+        if not name:
+            continue
+        got = subprocess.run(["fc-match", name], capture_output=True, text=True).stdout
+        if f'"{name}"' not in got:
+            say(f"! font {name!r} is not installed — "
+                f"fontconfig answers {got.strip() or '?'}")
+
+
 def render(spec: Spec, cast: Path, out: Path) -> None:
     need("agg")
     video = spec.video
@@ -806,12 +825,19 @@ def render(spec: Spec, cast: Path, out: Path) -> None:
     # uses.
     theme = f"{video.get('background', '0a0c0d')},{video.get('foreground', 'e2e4e6')},{palette}"
     out.parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
-        ["agg", "--theme", theme,
-         "--font-size", str(video.get("font_size", 14)),
-         "--speed", str(video.get("speed", 1.0)),
-         "--idle-time-limit", str(video.get("idle_limit", 1.5)),
-         str(cast), str(out)], capture_output=True, text=True)
+    command = ["agg", "--theme", theme,
+               "--font-size", str(video.get("font_size", 14)),
+               "--speed", str(video.get("speed", 1.0)),
+               "--idle-time-limit", str(video.get("idle_limit", 1.5))]
+    # An app that draws with a patched font needs the renderer to have one
+    # too, and the renderer's default list is family *names*: "JetBrains
+    # Mono" does not find "JetBrainsMono Nerd Font", so every icon lands as
+    # a blank cell and the video looks like the app forgot to draw them.
+    if family := video.get("font_family"):
+        command += ["--text-font-family", family]
+        unresolved(family)
+    command += [str(cast), str(out)]
+    result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
         tail = (result.stderr or "?").strip().splitlines()
         die("agg failed: " + (tail[-1] if tail else "?"))

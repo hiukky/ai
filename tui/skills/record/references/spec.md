@@ -30,6 +30,7 @@ A directory argument finds `demo.yml`, `demo.yaml` or `demo.toml` inside it.
 | `cols`, `rows` | Terminal size. Fewer columns = bigger text wherever it embeds |
 | `speed` | 1.0–1.4 reads as a person; past ~1.5 as fast-forward |
 | `background`, `foreground`, `palette` | The renderer paints the frame's padding in the background, so it must be the app's own or it shows as a border |
+| `font_family` | The font the renderer draws with, by family name. An app that uses a patched font needs one here too — the default list asks for `JetBrains Mono`, which does not find `JetBrainsMono Nerd Font`, and every icon then lands as a blank cell. A name that is not installed is reported, because the renderer falls back silently |
 | `font_size`, `idle_limit` | Passed to the renderer |
 | `wait_collapse` | What a `wait` beat's stretch collapses to |
 | `sidebar` | Column where the sidebar band ends, for `in: sidebar` |
