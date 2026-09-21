@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# openspec-init - the deterministic half of the `init` skill.
+#
+# Everything here is copy, scaffold and validate: it either succeeds or exits
+# non-zero. The judgement - which --tools this project needs, what its state
+# is, whether an architecture view is worth authoring, what to substitute into
+# the context block - stays in SKILL.md, where a human or a model decides it.
+set -euo pipefail
+
+# This script ships inside the plugin, at <plugin>/skills/init/scripts/, so it
+# knows where the plugin is. Nothing needs to hunt for a plugin root.
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+PLUGIN_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd)"
+SCHEMA_SRC="$PLUGIN_ROOT/resources/openspec/schema"
+DOCS_SRC="$PLUGIN_ROOT/resources/docs"
+
+die() { printf 'openspec-init: %s\n' "$*" >&2; exit 1; }
+say() { printf '%s\n' "$*"; }
+
+[ -f "$SCHEMA_SRC/schema.yaml" ] || die "no schema at $SCHEMA_SRC - wrong plugin root ($PLUGIN_ROOT)"
+
+usage() {
+  cat <<'USAGE'
+openspec-init <command>
+
+  detect    report what already exists in this project, one fact per line
+  schema    install/refresh the adr-driven schema and validate it
+  adr       create docs/adr/ and its README if absent
+  arch      create the architecture directory if absent
+  all       schema + adr + arch
+
+Run from the project root. `detect` writes to stdout and changes nothing.
+USAGE
+}
+
+cmd_detect() {
+  local kind=existing
+  # A project with no README, no package manifest and no source beyond a .git
+  # is one nobody has started yet - it gets a lighter touch in SKILL.md.
+  if [ -z "$(ls -A 2>/dev/null | grep -vE '^\.git$' || true)" ]; then
+    kind=new
+  elif [ ! -f README.md ] && [ ! -f README ] && \
+     ! ls package.json Cargo.toml pyproject.toml go.mod build.gradle pom.xml Gemfile composer.json >/dev/null 2>&1; then
+    kind=new
+  fi
+  say "project: $kind"
+  say "openspec: $([ -d openspec ] && echo present || echo absent)"
+  say "schema: $(sed -n 's/^schema:[[:space:]]*//p' openspec/config.yaml 2>/dev/null || echo none)"
+  say "docs/adr: $([ -d docs/adr ] && echo present || echo absent)"
+
+  # Where the architecture lives is declared by the project, not assumed. Read
+  # the declaration if there is one; fall back to the conventional directory.
+  local arch=""
+  if [ -f agents.yaml ]; then
+    arch="$(sed -n 's/^[[:space:]]*path:[[:space:]]*//p' agents.yaml 2>/dev/null | head -1)"
+  fi
+  [ -n "$arch" ] || arch="docs/architecture"
+  say "architecture-dir: $arch"
+  say "architecture-declared: $([ -f agents.yaml ] && grep -q 'artifacts:' agents.yaml 2>/dev/null && echo yes || echo no)"
+  local n=0
+  [ -d "$arch" ] && n="$(find "$arch" -maxdepth 3 \( -name '*.mmd' -o -name '*.mermaid' \) 2>/dev/null | wc -l | tr -d ' ')"
+  say "architecture-diagrams: $n"
+  say "harnesses: $(for d in .claude .codex .opencode .gemini .cursor; do [ -e "$d" ] && printf '%s ' "${d#.}"; done)"
+}
+
+cmd_schema() {
+  [ -d openspec ] || die "no openspec/ here - run \`openspec init --tools ...\` first (SKILL.md says how to choose the tools)"
+  mkdir -p openspec/schemas/adr-driven/templates
+  # This directory mirrors the plugin and is not hand-edited per project, so
+  # refreshing it wholesale is the point, not a risk.
+  cp "$SCHEMA_SRC/schema.yaml" openspec/schemas/adr-driven/schema.yaml
+  cp "$SCHEMA_SRC/templates/"*.md openspec/schemas/adr-driven/templates/
+  if command -v openspec >/dev/null 2>&1; then
+    openspec schema validate adr-driven
+  else
+    die "openspec CLI not on PATH - the schema was copied but not validated"
+  fi
+  # Make it the project's default. Deterministic enough to belong here: the
+  # key either says adr-driven afterwards or the script failed.
+  if [ -f openspec/config.yaml ]; then
+    if grep -q '^schema:' openspec/config.yaml; then
+      sed -i.bak 's/^schema:.*/schema: adr-driven/' openspec/config.yaml && rm -f openspec/config.yaml.bak
+    else
+      printf 'schema: adr-driven\n%s' "$(cat openspec/config.yaml)" > openspec/config.yaml
+    fi
+  else
+    printf 'schema: adr-driven\n' > openspec/config.yaml
+  fi
+  grep -q '^schema: adr-driven$' openspec/config.yaml || die "could not set schema: adr-driven in openspec/config.yaml"
+
+  say "schema: installed, validated ($(ls openspec/schemas/adr-driven/templates | wc -l | tr -d ' ') templates), and set as the project default"
+}
+
+cmd_adr() {
+  mkdir -p docs/adr
+  if [ -f docs/adr/README.md ]; then
+    say "docs/adr/README.md: already present, left alone"
+  else
+    cp "$DOCS_SRC/adr-readme.md" docs/adr/README.md
+    say "docs/adr/README.md: created"
+  fi
+}
+
+cmd_arch() {
+  local arch="${1:-docs/architecture}"
+  mkdir -p "$arch"
+  # No index file, and no placeholder diagram: the files are the list, and a
+  # view nobody updates still looks current.
+  say "architecture: $arch ready ($(find "$arch" -maxdepth 3 \( -name '*.mmd' -o -name '*.mermaid' \) 2>/dev/null | wc -l | tr -d ' ') diagrams)"
+}
+
+case "${1:-}" in
+  detect) cmd_detect ;;
+  schema) cmd_schema ;;
+  adr)    cmd_adr ;;
+  arch)   shift; cmd_arch "${1:-docs/architecture}" ;;
+  all)    cmd_schema; cmd_adr; cmd_arch ;;
+  -h|--help|help|"") usage ;;
+  *) usage; exit 1 ;;
+esac

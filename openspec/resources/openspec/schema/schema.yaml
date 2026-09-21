@@ -218,6 +218,10 @@ artifacts:
 apply:
   requires: [tasks]
   tracks: tasks.md
+  # The closed escalation list below is also stated, at length and with its
+  # reasoning, in the plugin's `auto` skill. They are deliberately in both
+  # places - this one ships into the project and drives apply with no skill
+  # loaded - so an edit to one condition belongs in both files.
   instruction: |
     Read context files, work through pending tasks in order, and mark each
     complete as you go. Before ticking a box, verify with the project's own

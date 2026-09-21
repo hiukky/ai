@@ -27,7 +27,12 @@ naming them, and the absorbed records are listed under
 
 - **Numbered sequentially**, one shared sequence for the whole repo.
   Numbers are never reused and never renumbered — code comments,
-  architecture docs and OpenSpec changes cite them.
+  architecture docs and OpenSpec changes cite them. To number a new one:
+  list the existing `NNN-*.md`, take the highest `NNN`, add one, zero-pad
+  to three digits (`001` if the directory is empty), and name the file
+  `NNN-kebab-title.md`. A record tied to an OpenSpec change carries a
+  trailing `Source change: openspec/changes/<name>/` line; one made
+  outside any change omits it.
 - **An ADR is written when an OpenSpec change is archived**, not while the
   approach could still change. The `operations.archive` guidance in
   `openspec/config.yaml` is the trigger: a decision flagged in that

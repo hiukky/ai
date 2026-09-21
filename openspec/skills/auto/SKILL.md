@@ -1,6 +1,9 @@
 ---
 name: auto
-description: Work an OpenSpec change's tasks.md to completion without stopping for approval - deciding alone when the plan runs out, recording each decision for review afterwards, and interrupting only on a closed list of conditions. Use when a change should be implemented unattended - "implementa sozinho", "vai até o fim", "não me pergunta", an overnight run, a long task list nobody is watching. Requires a project that ran the `init` skill and a change with a tasks.md.
+description: Work an OpenSpec change's tasks.md to completion without stopping for approval - deciding alone when the plan runs out, recording each decision for review afterwards, and interrupting only on a closed list of conditions. Use when a change should be implemented unattended - "implementa sozinho", "vai até o fim", "não me pergunta", an overnight run, a long task list nobody is watching. Not for adopting the standard in a project (that is `init`), not for writing a decision record (that is `adr`), not for committing work that is already finished (that is the `git` plugin's `commit`), and not for a change that has no tasks.md yet - write the plan first.
+compatibility: >-
+  A project that ran the `init` skill, a change with a tasks.md, git, and the
+  `openspec` CLI on PATH for the validate gate.
 ---
 
 # Auto (unattended apply)
@@ -16,6 +19,10 @@ down is destroying information; an agent that writes it down and still stops
 to ask has paid for nothing.
 
 ## The escalation bar - a closed list
+
+The same five conditions are stated in the `apply` phase's own instruction
+inside a project's schema, because that instruction has to work with no
+skill loaded. Changing a condition here means changing it there too.
 
 Stop and hand back to the user **only** when one of these is true:
 
@@ -69,6 +76,38 @@ For each unchecked `- [ ]` in `tasks.md`, in order:
 
 One commit per green item is not hygiene here, it is the mechanism: the sha
 is what makes a rejected decision a `git revert` instead of an argument.
+
+## The second gate: verify against the artifacts
+
+The project's tests answer "does this work". They cannot answer "is this the
+change we said we were making" - a task list can be worked to the end,
+green throughout, and still drift from the proposal it came from. OpenSpec
+has its own checker for exactly that:
+
+```bash
+openspec validate <change> --strict    # the CLI gate: exits non-zero
+```
+
+That checks the change's artifacts are complete and coherent with each
+other. It is structural, and it is cheap, so it belongs at the end of every
+task group.
+
+If the harness exposes OpenSpec's expanded workflow commands, `/opsx:verify`
+goes further: it reads the *implementation* against those artifacts and
+reports what does not line up. It is an agent command, not a binary - there
+is no `openspec verify` - so use it where it exists and don't fabricate it
+where it doesn't.
+
+Run the structural gate at the end of each task group, not only at the end of
+the run. A
+group is the cheapest honest checkpoint: far enough in that drift is
+visible, early enough that correcting it is one group of work rather than
+all of it. What it reports is not automatically a failure - judge it like
+any other finding, and if you act on it, that is a decision, so record it.
+
+The point of running something you did not write is that you are grading
+your own homework everywhere else in this loop. An unattended run with no
+independent check converges on whatever the runner already believed.
 
 Never delete or weaken a test to make a gate pass. A failing test is
 information; a deleted one is a lie the next run inherits. If a test is

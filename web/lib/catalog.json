@@ -23,12 +23,12 @@
           "id": "adr",
           "name": "adr",
           "plugin": "openspec",
-          "description": "Record one Architecture Decision Record under docs/adr/ when the user asks for it, or to backfill a past decision that predates this project's docs/adr/ convention. ADRs in the normal flow are written at archive time, not here - this skill is the out-of-band path, not a second routine door. Requires the project to have already run the `init` skill (docs/adr/ must exist).",
+          "description": "Record one Architecture Decision Record under docs/adr/ when the user asks for it, or to backfill a past decision that predates this project's docs/adr/ convention. ADRs in the normal flow are written at archive time, not here - this skill is the out-of-band path, not a second routine door. Not for a decision taken while implementing a change (that goes in the change's decisions.md and is judged at archive), not for documenting how the system is built (that is the architecture diagrams), and not for a naming, layout, refactor or tuning choice however long it was argued.",
           "invoke": {
             "model": true,
             "user": true
           },
-          "compatibility": null,
+          "compatibility": "A project that ran the `init` skill, so docs/adr/ and its README exist.",
           "references": [],
           "scripts": [],
           "path": "openspec/skills/adr"
@@ -37,12 +37,12 @@
           "id": "auto",
           "name": "auto",
           "plugin": "openspec",
-          "description": "Work an OpenSpec change's tasks.md to completion without stopping for approval - deciding alone when the plan runs out, recording each decision for review afterwards, and interrupting only on a closed list of conditions. Use when a change should be implemented unattended - \"implementa sozinho\", \"vai até o fim\", \"não me pergunta\", an overnight run, a long task list nobody is watching. Requires a project that ran the `init` skill and a change with a tasks.md.",
+          "description": "Work an OpenSpec change's tasks.md to completion without stopping for approval - deciding alone when the plan runs out, recording each decision for review afterwards, and interrupting only on a closed list of conditions. Use when a change should be implemented unattended - \"implementa sozinho\", \"vai até o fim\", \"não me pergunta\", an overnight run, a long task list nobody is watching. Not for adopting the standard in a project (that is `init`), not for writing a decision record (that is `adr`), not for committing work that is already finished (that is the `git` plugin's `commit`), and not for a change that has no tasks.md yet - write the plan first.",
           "invoke": {
             "model": true,
             "user": true
           },
-          "compatibility": null,
+          "compatibility": "A project that ran the `init` skill, a change with a tasks.md, git, and the `openspec` CLI on PATH for the validate gate.",
           "references": [],
           "scripts": [],
           "path": "openspec/skills/auto"
@@ -51,14 +51,16 @@
           "id": "init",
           "name": "init",
           "plugin": "openspec",
-          "description": "Apply the personal engineering standard to this project - OpenSpec (with ADRs formalized at archive time) + Mermaid architecture diagrams. Works on a new (empty/near-empty) or an existing project. Deliberate, one-time bootstrap: human-invoked only; not meant to be auto-discovered by the model.",
+          "description": "Adopt the personal engineering standard in this project - OpenSpec (proposal/specs/design/tasks) with ADRs written only at archive time, and Mermaid architecture diagrams. Use when someone asks to set this standard up, bootstrap a project onto it, or adopt it in an existing repository. Not for running a change through the standard once it is adopted (that is `auto`), not for writing a single decision record (that is `adr`), and not for setting up agent context portability across harnesses.",
           "invoke": {
             "model": false,
             "user": true
           },
-          "compatibility": null,
+          "compatibility": "The `openspec` CLI on PATH (npm `@fission-ai/openspec`), bash and python3. Writes into the current project; run it from the project root.",
           "references": [],
-          "scripts": [],
+          "scripts": [
+            "openspec-init"
+          ],
           "path": "openspec/skills/init"
         }
       ],
@@ -94,13 +96,15 @@
           "id": "commit",
           "name": "commit",
           "plugin": "git",
-          "description": "Commit (and push) changes using Conventional Commits. Use this whenever the user explicitly asks to commit, push, save, or check in changes - \"commit this\", \"commit and push\", \"save my work\", \"git commit\", \"faz um commit\" - and also proactively, on your own initiative, once a unit of work is genuinely done, not only when explicitly asked. Applies in any project with a git repository.",
+          "description": "Commit (and push) changes using Conventional Commits. Use this whenever the user explicitly asks to commit, push, save, or check in changes - \"commit this\", \"commit and push\", \"save my work\", \"git commit\", \"faz um commit\" - and also proactively, on your own initiative, once a unit of work is genuinely done, not only when explicitly asked. Applies in any project with a git repository. Not for opening a pull or merge request or naming its branch (that is `pr`), not for writing the code that is being committed, and not for rewriting history that is already pushed - that needs the user's word first.",
           "invoke": {
             "model": true,
             "user": true
           },
-          "compatibility": null,
-          "references": [],
+          "compatibility": "git on PATH, in a repository with at least one commit or a fresh init.",
+          "references": [
+            "descriptions.md"
+          ],
           "scripts": [],
           "path": "git/skills/commit"
         },
@@ -108,12 +112,12 @@
           "id": "pr",
           "name": "pr",
           "plugin": "git",
-          "description": "Open, name and describe a pull/merge request (GitHub PR, GitLab MR) and its branch. Use whenever the user asks to open a PR/MR, \"abre um PR\", \"cria o MR\", \"manda pra revisão\", or when finished work on a branch needs to reach the default branch through review - and before publishing a branch for review, to name it right. Applies in any project with a remote and a review flow.",
+          "description": "Open, name and describe a pull/merge request (GitHub PR, GitLab MR) and its branch. Use whenever the user asks to open a PR/MR, \"abre um PR\", \"cria o MR\", \"manda pra revisão\", or when finished work on a branch needs to reach the default branch through review - and before publishing a branch for review, to name it right. Applies in any project with a remote and a review flow. Not for committing or pushing work (that is `commit`), not for reviewing someone else's request, and not for merging one - that stays with whoever the repo's convention says.",
           "invoke": {
             "model": true,
             "user": true
           },
-          "compatibility": null,
+          "compatibility": "git, plus the platform's CLI authenticated for this remote - `gh` for GitHub, `glab` for GitLab.",
           "references": [],
           "scripts": [],
           "path": "git/skills/pr"
@@ -184,7 +188,7 @@
           "id": "sync",
           "name": "sync",
           "plugin": "env",
-          "description": "Keep a machine and its dotfiles repo the same thing - install and configure through the dotfiles source directory, never by hand. Use whenever someone asks to install or set up anything on their machine (a CLI, a package, a runtime, a font, a desktop app - \"instala o X\", \"poe o Y na maquina\", \"set this up\"), whenever a config file in the home directory needs changing, and whenever they ask whether the environment is in sync, what drifted, or why a fresh machine would not come out the same. Also use right after something was installed by hand, to write it back before it is forgotten. Machine-scoped - applies in any project, or in none.",
+          "description": "Keep a machine and its dotfiles repo the same thing - install and configure through the dotfiles source directory, never by hand. Use whenever someone asks to install or set up anything on their machine (a CLI, a package, a runtime, a font, a desktop app - \"instala o X\", \"poe o Y na maquina\", \"set this up\"), whenever a config file in the home directory needs changing, and whenever they ask whether the environment is in sync, what drifted, or why a fresh machine would not come out the same. Also use right after something was installed by hand, to write it back before it is forgotten. Machine-scoped - applies in any project, or in none. Not for installing a dependency of the project you are in (that belongs in its own package manifest), not for committing the dotfiles repo once the change is written (that is the git plugin's `commit`), and not for a one-off command run to inspect the machine.",
           "invoke": {
             "model": true,
             "user": true

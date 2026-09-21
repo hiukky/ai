@@ -1,6 +1,7 @@
 ---
 name: adr
-description: Record one Architecture Decision Record under docs/adr/ when the user asks for it, or to backfill a past decision that predates this project's docs/adr/ convention. ADRs in the normal flow are written at archive time, not here - this skill is the out-of-band path, not a second routine door. Requires the project to have already run the `init` skill (docs/adr/ must exist).
+description: Record one Architecture Decision Record under docs/adr/ when the user asks for it, or to backfill a past decision that predates this project's docs/adr/ convention. ADRs in the normal flow are written at archive time, not here - this skill is the out-of-band path, not a second routine door. Not for a decision taken while implementing a change (that goes in the change's decisions.md and is judged at archive), not for documenting how the system is built (that is the architecture diagrams), and not for a naming, layout, refactor or tuning choice however long it was argued.
+compatibility: A project that ran the `init` skill, so docs/adr/ and its README exist.
 ---
 
 # ADR (Architecture Decision Record)
@@ -34,40 +35,29 @@ it clears the bar. Don't write the file first.
 1. If `docs/adr/` doesn't exist yet, this project hasn't run the `init` skill
    - tell the user and stop (don't half-scaffold it here).
 
-2. Confirm the decision clears the bar before writing anything. The
-   default is no ADR. All four must be yes: is reversing it expensive
-   (if undoing it is a refactor one change could carry, it is not an
-   ADR); was a real alternative rejected (a Decision with no contender
-   is a description); does it bind code that does not exist yet (a
-   choice constraining only what is already written is history); is it
-   unrecorded elsewhere (a rule a test enforces or a boundary AGENTS.md
-   states already has a home). These never qualify however long they
-   were debated: naming or vocabulary, file or module layout, a
-   refactor, a bug fix, a performance tuning, a dependency version bump,
-   a test strategy, a UI arrangement, or a restatement of a principle an
-   existing ADR already holds. If it doesn't clear the bar, create no
-   file - say so, and say where the reasoning belongs instead (the
-   commit message, `design.md`, or the change's `decisions.md`).
-   `docs/adr/README.md` holds the full rules.
+2. Confirm the decision clears the bar before writing anything. The bar
+   is stated in one place - `docs/adr/README.md`, in this project - and
+   that file wins over any summary, including this one. Read its Rules
+   section, answer its four questions out loud, and check the decision
+   against its list of what never qualifies. The default is no ADR. If it
+   doesn't clear the bar, create no file: say so, and say where the
+   reasoning belongs instead - the commit message, the change's
+   `design.md`, or its `decisions.md`.
 
 3. Gather Context/Decision/Consequences. If backfilling a past decision,
    look at the actual code/commits/design docs involved rather than
    reconstructing from memory - Context and Consequences should reflect
    what was really true at the time, not a tidied-up retelling.
 
-4. Determine the next sequential number: list existing
-   `docs/adr/NNN-*.md` files, take the highest `NNN`, add one
-   (zero-padded to 3 digits). If none exist yet, start at `001`.
+4. Number and write the file the way `docs/adr/README.md` states, in
+   Nygard style. Status is `Accepted` unless the user says otherwise. If
+   the decision was made outside any OpenSpec change, omit the `Source
+   change:` line other ADRs may carry; if it is tied to one that still
+   exists, include it - don't point at an archived or deleted path
+   without checking.
 
-5. Write `docs/adr/<NNN>-<kebab-case-title>.md` using the
-   Context/Decision/Consequences structure (see any existing ADR in the
-   directory for the exact shape, or `docs/adr/README.md` for the
-   convention). Status is `Accepted` unless the user says otherwise. If
-   this decision was made outside any OpenSpec change, omit the "Source
-   change" line other ADRs may have; if it's tied to one, include it:
-   `Source change: openspec/changes/<name>/` (only if that change still
-   exists - don't reference an archived/deleted one by a stale path
-   without checking).
+5. Add the record to the README's index, in number order. Nothing
+   generates that list, so an ADR missing from it is an ADR nobody finds.
 
 6. If this decision reverses or supersedes an existing ADR, do not edit
    that file's Decision - add `Status: Superseded by

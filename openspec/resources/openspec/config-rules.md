@@ -72,46 +72,24 @@ operations:
         was originally flagged - if the approach changed along the way, a
         flagged decision may no longer apply, and an unflagged one may
         now qualify.
-      - Start from NO ADR and make each candidate earn one. It qualifies
-        only if all four are yes, answered out loud in this discussion,
-        not in your head: (1) is reversing it expensive - if undoing it
-        is a refactor one change could carry, it is not an ADR; (2) was a
-        real alternative rejected - a Decision with no contender is a
-        description, and descriptions belong in the architecture docs or
-        the code; (3) does it bind code that does not exist yet - a
-        choice constraining only what is already written is history, and
-        the archive is what history is for; (4) is it unrecorded
-        elsewhere - a rule a test enforces, a boundary AGENTS.md states
-        or a relationship a diagram draws already has a home.
-      - These never qualify, however long they were debated: a naming or
-        vocabulary choice, a file or module layout, a refactor, a bug fix
-        however subtle, a performance tuning, a dependency version bump,
-        a test strategy, a UI arrangement, or a decision that only
-        restates a principle an existing ADR already holds. Fold the
-        reasoning into the change's own design.md - it is archived with
-        the change and stays findable.
-      - If the Decision needs more than a short paragraph to state, it is
-        probably two decisions or none. Split it or drop it.
-      - If a qualifying decision continues an existing ADR rather than
-        reversing it - the same decision refined or extended - fold it
-        into that record instead of taking a new number, so one topic
-        stays one ADR.
+      - Start from NO ADR and make each candidate earn one. The bar
+        lives in docs/adr/README.md, which this project already has:
+        read its Rules section and answer its four questions out loud
+        in this discussion rather than in your head, and check the
+        candidate against its list of what never qualifies. That file is
+        the single place the bar is stated - don't re-derive it here, and
+        if it disagrees with anything below, it wins.
       - Every decisions.md entry must be resolved before the change is
         archived: `accepted` entries are the ADR candidates above,
         `overturned` ones must already have their follow-up work in
         tasks.md, and an entry still `pending` means the change is not
         ready to archive - say so and stop rather than archiving an
         unreviewed decision.
-      - For each qualifying decision, write one ADR: list existing
-        `docs/adr/NNN-*.md` files, take the next sequential number
-        (3 digits, zero-padded, continuing the existing sequence), and
-        create `docs/adr/<NNN>-<kebab-title>.md` in Nygard style (Context
-        is the situation forcing a choice, Decision is what was chosen
-        stated firmly, Consequences covers what becomes easier/harder
-        including trade-offs accepted), with a trailing line `Source
-        change: openspec/changes/<change-name>/`. This file is the
-        permanent record - it is not moved or deleted when the change is
-        archived.
+      - For each qualifying decision, write one ADR the way
+        docs/adr/README.md's Format and numbering rules state, with a
+        trailing line `Source change: openspec/changes/<change-name>/`.
+        This file is the permanent record - it is not moved or deleted
+        when the change is archived.
       - If nothing clears the bar, create no ADR files and say so. This
         is the expected outcome, not a failure of the change: an ADR set
         that grows with every archive is a set nobody reads.

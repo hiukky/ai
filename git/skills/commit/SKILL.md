@@ -1,6 +1,7 @@
 ---
 name: commit
-description: Commit (and push) changes using Conventional Commits. Use this whenever the user explicitly asks to commit, push, save, or check in changes - "commit this", "commit and push", "save my work", "git commit", "faz um commit" - and also proactively, on your own initiative, once a unit of work is genuinely done, not only when explicitly asked. Applies in any project with a git repository.
+description: Commit (and push) changes using Conventional Commits. Use this whenever the user explicitly asks to commit, push, save, or check in changes - "commit this", "commit and push", "save my work", "git commit", "faz um commit" - and also proactively, on your own initiative, once a unit of work is genuinely done, not only when explicitly asked. Applies in any project with a git repository. Not for opening a pull or merge request or naming its branch (that is `pr`), not for writing the code that is being committed, and not for rewriting history that is already pushed - that needs the user's word first.
+compatibility: git on PATH, in a repository with at least one commit or a fresh init.
 ---
 
 # Commit (Conventional Commits)
@@ -97,14 +98,8 @@ diff. Five rules, all of which must hold:
 Terseness is not the goal; a precise line may run to 72 characters.
 Checkability is.
 
-| instead of | write |
-|---|---|
-| `feat(observability): keep a journal nobody has to turn on` | `feat(observability): enable the session journal by default` |
-| `feat(plugins): say whether an installed plugin is the one that exists` | `feat(plugins): flag installed plugins missing from the catalogue` |
-| `feat(marketplace): skip what this machine cannot reach, and say access is access` | `feat(marketplace): report unreachable marketplaces as an access error` |
-| `fix(ui): read the strip's right end as three zones, not a row of chips` | `fix(ui): render the status bar's right side as three fixed zones` |
-| `fix(terminal): never end a live server that can still serve the client` | `fix(terminal): keep the server alive while a client is attached` |
-| `feat!: carry every record across a version, and give every agent its work's state` | `feat!: migrate persisted records on version change` + a second commit for the agent state |
+The rewrites in `references/descriptions.md` show the same six lines before
+and after - read them when a description is hard to phrase, not every time.
 
 A useful last check before committing: **could a teammate who has not
 seen the diff name the wrong feature from this line?** If the line is

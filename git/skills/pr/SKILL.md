@@ -1,6 +1,9 @@
 ---
 name: pr
-description: Open, name and describe a pull/merge request (GitHub PR, GitLab MR) and its branch. Use whenever the user asks to open a PR/MR, "abre um PR", "cria o MR", "manda pra revisão", or when finished work on a branch needs to reach the default branch through review - and before publishing a branch for review, to name it right. Applies in any project with a remote and a review flow.
+description: Open, name and describe a pull/merge request (GitHub PR, GitLab MR) and its branch. Use whenever the user asks to open a PR/MR, "abre um PR", "cria o MR", "manda pra revisão", or when finished work on a branch needs to reach the default branch through review - and before publishing a branch for review, to name it right. Applies in any project with a remote and a review flow. Not for committing or pushing work (that is `commit`), not for reviewing someone else's request, and not for merging one - that stays with whoever the repo's convention says.
+compatibility: >-
+  git, plus the platform's CLI authenticated for this remote - `gh` for
+  GitHub, `glab` for GitLab.
 ---
 
 # Pull / merge requests
