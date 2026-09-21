@@ -180,6 +180,21 @@ def load_spec(argument: str) -> Spec:
     return Spec(path=path, data=data, root=root)
 
 
+def pick(hits: list, occurrence) -> tuple:
+    """Which hit `occurrence` names: `first`, `last`, or a 1-based number.
+
+    Absent, and out of range, are both (0, 0) — the caller refuses a
+    non-positive column rather than offsetting one.
+    """
+    if not hits:
+        return (0, 0)
+    if occurrence == "last":
+        return hits[-1]
+    if isinstance(occurrence, int):
+        return hits[occurrence - 1] if 0 < occurrence <= len(hits) else (0, 0)
+    return hits[0]
+
+
 # ── the terminal under the recording ─────────────────────────────────────
 
 @dataclass
@@ -219,21 +234,27 @@ class Screen:
             while (col := line.find(text, start, high)) != -1:
                 hits.append((row, col + 1))
                 start = col + 1
-        if not hits:
-            return (0, 0)
-        if occurrence == "last":
-            return hits[-1]
-        if isinstance(occurrence, int):
-            return hits[occurrence - 1] if 0 < occurrence <= len(hits) else (0, 0)
-        return hits[0]
+        return pick(hits, occurrence)
 
-    def find_glyph(self, glyphs: str, where: str = "screen"):
+    def find_glyph(self, glyphs: str, where: str = "screen", occurrence="first"):
+        """The same, aiming at characters rather than at text.
+
+        Several are accepted so a spec can name a mark without naming the
+        set that draws it: an app with a plain and a patched glyph set puts
+        a different codepoint in the same cell, and a spec that hard-codes
+        one stops aiming the day the other is chosen. `occurrence` counts
+        the same way it does for text, because the mark a toolbar button
+        carries is usually the one the tabs carry too.
+        """
         low, high = self.band(where)
-        for row, line in enumerate(self.pane().splitlines(), 1):
-            for col, char in enumerate(line[low - 1:high], low):
-                if char in glyphs:
-                    return (row, col)
-        return (0, 0)
+        rows = self.pane().splitlines()
+        if where == "strip":
+            rows = rows[:1]
+        hits = [(row, col)
+                for row, line in enumerate(rows, 1)
+                for col, char in enumerate(line[low - 1:high], low)
+                if char in glyphs]
+        return pick(hits, occurrence)
 
     def shows(self, pattern: str, where: str = "screen") -> bool:
         haystack = ("".join(self.pane().splitlines()[:1]) if where == "strip"
@@ -319,7 +340,7 @@ class Take:
         where = beat.get("in", "screen")
         occurrence = beat.get("occurrence", "first")
         if glyphs := beat.get("glyph"):
-            row, col = self.screen.find_glyph(glyphs, where)
+            row, col = self.screen.find_glyph(glyphs, where, occurrence)
         else:
             text = beat.get(self.action_of(beat))
             if not isinstance(text, str):
