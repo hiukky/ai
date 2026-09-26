@@ -17,7 +17,6 @@ plugin once and Claude Code, Codex, OpenCode and Antigravity each receive
 its skills through their own most native surface.
 
 ```sh
-curl -fsSL https://uze.sh/i | sh   # uze itself, if it is not here yet
 uze market add hiukky/ai
 ```
 
@@ -28,15 +27,21 @@ uze market add hiukky/ai
 | | Skills | |
 |---|---|---|
 | [`openspec`](openspec/) | `init` · `auto` · `adr` | Spec-driven change workflow (proposal → specs → design → tasks), run unattended by `auto`, with ADRs written only at archive time and Mermaid diagrams kept current per change |
-| [`git`](git/) | `commit` · `pr` | [Conventional Commits](https://www.conventionalcommits.org/) and gitflow-named pull requests — committed proactively once a unit of work is done, not only when asked |
+| [`git`](git/) | `commit` · `pr` | [Conventional Commits](https://www.conventionalcommits.org/) and gitflow-named pull requests, committed proactively once a unit of work is done, not only when asked |
 | [`tui`](tui/) | `record` | A TUI turned into a demo video, generated from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in |
-| [`env`](env/) | `sync` · `reclaim` | The machine as a build product of its dotfiles — installed by writing its lane in the chezmoi source, never by hand — and its disks kept in check: prune what regenerates, decide the rest, shrink the WSL disk last |
+| [`env`](env/) | `sync` · `reclaim` | The machine as a build product of its dotfiles, installed by writing its lane in the chezmoi source and never by hand, with its disks kept in check: prune what regenerates, decide the rest, shrink the WSL disk last |
 
-Every skill declares who may invoke it in its own frontmatter — the default
+Every skill declares who may invoke it in its own frontmatter. The default
 is model **and** user, so an agent can reach for it and a person can call it
 by name. `init` is deliberately user-only.
 
 ## Install
+
+Needs [uze](https://uze.sh) on the machine:
+
+```sh
+curl -fsSL https://uze.sh/i | sh
+```
 
 Into a project, so everyone who clones it gets the same plugins. uze writes
 `agents.yaml` (what the project wants) and `agents.lock` (the commit it
@@ -50,10 +55,11 @@ uze git@ai
 On a fresh clone, `uze install` rebuilds the same set; `uze update` is what
 moves it forward.
 
-Or on this machine only, for every project and none:
+Or on this machine only, for every project and none. This is the natural
+scope for `env`, which is about the machine itself:
 
 ```sh
-uze install env@ai -m     # env is machine-scoped by nature: this is its scope
+uze install env@ai -m
 uze install tui@ai -m
 ```
 
@@ -63,7 +69,7 @@ receives it; `uze status` (or `-m`) shows what is installed where.
 ## Developing
 
 Link the marketplace to a checkout and installs read its working tree,
-uncommitted files included — no publish step while iterating:
+uncommitted files included, so there is no publish step while iterating:
 
 ```sh
 uze market link ai ~/ai
@@ -88,14 +94,14 @@ web/                Docs    ┘ that aren't plugins
 
 ## Docs
 
-The site under [`web/`](web/) is the catalog with prose around it — what each
+The site under [`web/`](web/) is the catalog with prose around it: what each
 plugin carries, what each skill does, and what makes it fire.
 
 ```sh
 cd web && bun install && bun run dev
 ```
 
-Its catalog is **generated from this repository** at build time —
+Its catalog is **generated from this repository** at build time:
 `marketplace.json` for the roster, each `plugin.json` for the manifest, each
 `SKILL.md`'s frontmatter for the capability and its invocation policy. A skill
 renamed here is renamed there on the next build, and no page can describe one
