@@ -19,6 +19,6 @@ outside the proactive default — they need the repo's convention or the user's
 word, every time.
 
 ```bash
-uze plugin install git@ai   # machine-wide
-uze git@ai                  # this project only
+uze install git@ai -m   # machine-wide
+uze git@ai              # this project only
 ```

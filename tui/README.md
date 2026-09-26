@@ -25,6 +25,6 @@ tui-record recut     cut and render the last take again
 `skills/record/references/spec.md` is the key-by-key format reference.
 
 ```bash
-uze plugin install tui@ai   # machine-wide
-uze tui@ai                  # this project only
+uze install tui@ai -m   # machine-wide
+uze tui@ai              # this project only
 ```

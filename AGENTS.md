@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Overview
-Personal hub for AI resources, published for other people to install — a **UZE marketplace** (`marketplace.json`) cataloging self-contained plugins at the repo's top level. Opinionated by design, portable by rule: the standards here are one person's, the plugins that carry them are not tied to one person's machine (see Conventions). Only two things here aren't themselves plugins: `marketplace.json`, and `web/` (the documentation site). Register once with `uze market add hiukky/ai`, then `uze plugin install <name>@ai` (machine-wide) or `uze <name>@ai` (current project only); on dotfiles-managed machines the repo is cloned locally and `uze setup` picks it up.
+Personal hub for AI resources, published for other people to install — a **UZE marketplace** (`marketplace.json`) cataloging self-contained plugins at the repo's top level. Opinionated by design, portable by rule: the standards here are one person's, the plugins that carry them are not tied to one person's machine (see Conventions). Only two things here aren't themselves plugins: `marketplace.json`, and `web/` (the documentation site). Register once with `uze market add hiukky/ai`, then `uze <name>@ai` (current project, written into its `agents.yaml`/`agents.lock`) or `uze install <name>@ai -m` (this machine only); on dotfiles-managed machines the repo is cloned locally and `uze setup` picks it up.
 
 ## Structure
 ```
@@ -29,7 +29,7 @@ Current plugins:
 Deliberately *not* split into their own plugins yet - the current inventory doesn't need it and premature separation is easy to regret: an `architecture`/`specification` split of `openspec` (OpenSpec, ADR and the architecture diagrams are one coupled workflow today; split only when one needs to evolve independently of the other), a standalone `project` plugin (there's only one bootstrap entry point, the `init` skill; split out only if a second, non-OpenSpec bootstrap concern shows up), and an `adapters/` layer for per-harness translation (UZE itself already detects/provisions claude-code/codex/opencode/gemini - confirm it doesn't already cover this before duplicating it here).
 
 ## Build / Test / Lint
-No build, test, or lint commands at repo root — the root is a marketplace catalog, not a runnable app. Validate marketplace/plugin shape with UZE tooling when needed (`uze list`, `uze context inspect`).
+No build, test, or lint commands at repo root — the root is a marketplace catalog, not a runnable app. Validate marketplace/plugin shape with UZE tooling before pushing (`uze agent plugin check <name>`, `uze agent market check .`); `uze market link ai <checkout>` makes installs read a working tree while iterating.
 
 `web/` is the one runnable thing here: `bun install`, then `bun run dev` / `bun run build` / `bun run types:check` from inside it. Its catalog is generated from this repository at build time (`bun run catalog` → `web/lib/catalog.json`), so the site is built from a checkout, never from a copy of `web/` alone.
 

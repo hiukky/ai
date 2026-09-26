@@ -27,5 +27,5 @@ models, volumes, VM images — as a list for a person to decide. Compacting a WS
 disk means stopping WSL, so that part is printed, never run.
 
 ```bash
-uze plugin install env@ai   # machine-wide, which is the only scope that makes sense here
+uze install env@ai -m   # machine-wide, which is the only scope that makes sense here
 ```

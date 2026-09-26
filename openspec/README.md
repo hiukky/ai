@@ -20,8 +20,8 @@ owns **when** a view must change — inside the change that moved the boundary,
 never as a follow-up — and never how to draw one.
 
 ```bash
-uze plugin install openspec@ai   # machine-wide
-uze openspec@ai                  # this project only
+uze install openspec@ai -m   # machine-wide
+uze openspec@ai              # this project only
 ```
 
 See [the plugin page](../web/content/docs/plugins/openspec.mdx) for the long form.

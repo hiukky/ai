@@ -4,19 +4,20 @@
 
 **Personal AI tooling. Portable by default.**
 
-[![Marketplace](https://img.shields.io/badge/uze-marketplace-8fd19e?style=flat-square&labelColor=1e1f20)](https://github.com/hiukky/uze)
+[![Marketplace](https://img.shields.io/badge/uze-marketplace-8fd19e?style=flat-square&labelColor=1e1f20)](https://uze.sh/docs/plugins/marketplaces)
 [![Plugins](https://img.shields.io/badge/plugins-4-7d97c9?style=flat-square&labelColor=1e1f20)](marketplace.json)
-[![Skills](https://img.shields.io/badge/skills-7-e0b567?style=flat-square&labelColor=1e1f20)](#plugins)
+[![Skills](https://img.shields.io/badge/skills-8-e0b567?style=flat-square&labelColor=1e1f20)](#plugins)
 [![Spec](https://img.shields.io/badge/agent_plugins-1.0-a9a4c4?style=flat-square&labelColor=1e1f20)](https://agent-plugins.org)
 [![Docs](https://img.shields.io/badge/docs-web-e0b567?style=flat-square&labelColor=1e1f20)](web/)
 
-A [UZE](https://github.com/hiukky/uze) marketplace of self-contained
-plugins — an engineering standard, git conventions, and a toolkit for
-recording terminal UIs. Each capability is a skill an agent discovers on
-its own, delivered to Claude, Codex, OpenCode and Antigravity through
-whatever surface each one calls native.
+A [uze](https://uze.sh) marketplace of self-contained plugins: an
+engineering standard, git conventions, a toolkit for recording terminal
+UIs, and a machine kept as a build product of its dotfiles. Install a
+plugin once and Claude Code, Codex, OpenCode and Antigravity each receive
+its skills through their own most native surface.
 
 ```sh
+curl -fsSL https://uze.sh/i | sh   # uze itself, if it is not here yet
 uze market add hiukky/ai
 ```
 
@@ -29,7 +30,7 @@ uze market add hiukky/ai
 | [`openspec`](openspec/) | `init` · `auto` · `adr` | Spec-driven change workflow (proposal → specs → design → tasks), run unattended by `auto`, with ADRs written only at archive time and Mermaid diagrams kept current per change |
 | [`git`](git/) | `commit` · `pr` | [Conventional Commits](https://www.conventionalcommits.org/) and gitflow-named pull requests — committed proactively once a unit of work is done, not only when asked |
 | [`tui`](tui/) | `record` | A TUI turned into a demo video, generated from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in |
-| [`env`](env/) | `sync` | The machine as a build product of its dotfiles: a tool is installed by writing its lane in the chezmoi source and applying, never by hand, and "is it in sync?" is answered on all four axes |
+| [`env`](env/) | `sync` · `reclaim` | The machine as a build product of its dotfiles — installed by writing its lane in the chezmoi source, never by hand — and its disks kept in check: prune what regenerates, decide the rest, shrink the WSL disk last |
 
 Every skill declares who may invoke it in its own frontmatter — the default
 is model **and** user, so an agent can reach for it and a person can call it
@@ -37,19 +38,38 @@ by name. `init` is deliberately user-only.
 
 ## Install
 
-Machine-wide, from any project:
-
-```sh
-uze plugin install openspec@ai
-uze plugin install git@ai
-uze plugin install tui@ai
-uze plugin install env@ai
-```
-
-Or scoped to one project, written into its `agents.lock`:
+Into a project, so everyone who clones it gets the same plugins. uze writes
+`agents.yaml` (what the project wants) and `agents.lock` (the commit it
+resolved to); commit both.
 
 ```sh
 uze openspec@ai
+uze git@ai
+```
+
+On a fresh clone, `uze install` rebuilds the same set; `uze update` is what
+moves it forward.
+
+Or on this machine only, for every project and none:
+
+```sh
+uze install env@ai -m     # env is machine-scoped by nature: this is its scope
+uze install tui@ai -m
+```
+
+`uze inspect <plugin>` shows what a plugin carries and how each agent
+receives it; `uze status` (or `-m`) shows what is installed where.
+
+## Developing
+
+Link the marketplace to a checkout and installs read its working tree,
+uncommitted files included — no publish step while iterating:
+
+```sh
+uze market link ai ~/ai
+uze agent plugin check env      # the parsers an install runs, offline
+uze agent market check .
+uze update env -m               # re-deliver after an edit
 ```
 
 ## Layout
@@ -80,6 +100,9 @@ Its catalog is **generated from this repository** at build time —
 `SKILL.md`'s frontmatter for the capability and its invocation policy. A skill
 renamed here is renamed there on the next build, and no page can describe one
 that no longer exists.
+
+How uze itself installs, delivers and updates plugins is documented at
+[uze.sh/docs](https://uze.sh/docs).
 
 ---
 
