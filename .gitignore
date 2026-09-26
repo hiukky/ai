@@ -2,3 +2,4 @@
 .metrics/
 .vercel
 .env*
+__pycache__/
