@@ -115,6 +115,6 @@ How uze itself installs, delivers and updates plugins is documented at
 Author: [Romullo Sousa (hiukky)](https://github.com/hiukky)
 
 <p align="center">
-  <sub>Built with 🖤 by <a href="https://hiukky.com">Hiukky</a>
+  <sub>Built with 🖤 by <a href="https://hiukky.com">hiukky</a>
   <br/>
 </p>
