@@ -1,0 +1,622 @@
+#!/usr/bin/env python3
+"""reclaim — find what fills a machine's disks, and give back what regenerates.
+
+Measuring and removing are deterministic; deciding is not. This script does
+the first two and hands the third back as data: every finding says whether
+it regenerates on its own (safe to prune unattended) or needs a judgement
+(an open worktree, a downloaded model, a game, a volume with a database).
+
+  reclaim scan    [--json] [--no-host] [--top N]   measure everything, change nothing
+  reclaim prune   docker [--all]         [--yes]   build cache, dangling (or all unused) images
+  reclaim prune   caches [NAME ...]      [--yes]   package-manager caches, through each tool's own clean
+  reclaim prune   build  PATH ...        [--yes]   build output dirs (cargo target/, node_modules)
+  reclaim compact [--distro NAME]                  print the commands that shrink a WSL virtual disk
+
+`prune` is a dry run until `--yes`. `compact` never runs anything: shrinking
+a WSL disk means stopping WSL, which stops whatever is running this.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+HOME = Path.home()
+
+
+def say(message: str) -> None:
+    print(f"\033[38;5;114m▸\033[0m {message}", file=sys.stderr, flush=True)
+
+
+def warn(message: str) -> None:
+    print(f"\033[38;5;179m!\033[0m {message}", file=sys.stderr)
+
+
+def die(message: str, code: int = 1):
+    print(f"reclaim: {message}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def human(n: float | None) -> str:
+    if n is None:
+        return "?"
+    for unit in ("B", "K", "M", "G", "T"):
+        if abs(n) < 1024 or unit == "T":
+            return f"{n:.1f}{unit}" if unit in ("G", "T") else f"{n:.0f}{unit}"
+        n /= 1024
+    return f"{n:.1f}T"
+
+
+def run(command: list[str], timeout: float | None = None) -> str:
+    """stdout of a command, or "" when it is missing or fails — a scan reports
+    what it could measure and never dies on one absent tool."""
+    try:
+        done = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return done.stdout if done.returncode == 0 else ""
+
+
+def du(paths: list[Path]) -> dict[str, int]:
+    """Apparent-free byte counts (`du -sb` counts blocks' contents), one call
+    for many paths. Unreadable subtrees are skipped, not fatal."""
+    paths = [p for p in paths if p.exists()]
+    if not paths:
+        return {}
+    done = subprocess.run(["du", "-sxB1", *map(str, paths)],
+                          capture_output=True, text=True)
+    sizes = {}
+    for line in done.stdout.splitlines():
+        size, _, path = line.partition("\t")
+        if size.isdigit():
+            sizes[path] = int(size)
+    return sizes
+
+
+def in_wsl() -> bool:
+    if os.environ.get("WSL_DISTRO_NAME"):
+        return True
+    try:
+        return "microsoft" in Path("/proc/version").read_text().lower()
+    except OSError:
+        return False
+
+
+# ── host (Windows, reached from inside WSL) ─────────────────────────────────
+
+HOST_PS = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+Add-Type -Namespace Reclaim -Name Native -MemberDefinition '[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] public static extern uint GetCompressedFileSizeW(string name, out uint high);'
+function Allocated($p) { $hi = [uint32]0; $lo = [Reclaim.Native]::GetCompressedFileSizeW($p, [ref]$hi); ([uint64]$hi -shl 32) + $lo }
+
+$disks = @()
+$lxss = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*'
+foreach ($d in Get-ItemProperty $lxss) {
+  $v = Join-Path $d.BasePath 'ext4.vhdx'
+  if (-not (Test-Path -LiteralPath $v)) { continue }
+  $i = Get-Item -LiteralPath $v -Force
+  $disks += [pscustomobject]@{ distro = $d.DistributionName; path = $v; length = $i.Length
+    allocated = (Allocated $v); sparse = [bool]($i.Attributes -band [IO.FileAttributes]::SparseFile) }
+}
+# Docker Desktop keeps its own distro's disk outside the Lxss key.
+foreach ($v in Get-ChildItem "$env:LOCALAPPDATA\Docker" -Recurse -Force -Filter *.vhdx) {
+  $disks += [pscustomobject]@{ distro = "docker-desktop:$($v.Name)"; path = $v.FullName; length = $v.Length
+    allocated = (Allocated $v.FullName); sparse = [bool]($v.Attributes -band [IO.FileAttributes]::SparseFile) }
+}
+
+$drives = foreach ($p in Get-PSDrive -PSProvider FileSystem) {
+  if ($p.Used -ne $null) { [pscustomobject]@{ name = "$($p.Name):"; used = [uint64]$p.Used; free = [uint64]$p.Free } } }
+
+$folders = @()
+if ($env:RECLAIM_FOLDERS -eq '1') {
+  # One pass per root, each file visited once: the profile's AppData and
+  # C:\Users are skipped where a narrower root already covers them.
+  $roots = @(
+    @{ root = 'C:\';                 skip = @('Users') },
+    @{ root = $env:USERPROFILE;      skip = @('AppData') },
+    @{ root = $env:LOCALAPPDATA;     skip = @() },
+    @{ root = $env:APPDATA;          skip = @() })
+  foreach ($r in $roots) {
+    foreach ($c in Get-ChildItem -LiteralPath $r.root -Force) {
+      if ($r.skip -contains $c.Name) { continue }
+      if ($c.PSIsContainer) {
+        $s = (Get-ChildItem -LiteralPath $c.FullName -Recurse -Force -File | Measure-Object Length -Sum).Sum
+      } else { $s = $c.Length }
+      if ($s -gt 0) { $folders += [pscustomobject]@{ path = $c.FullName; bytes = [uint64]$s } }
+    }
+    [Console]::Error.WriteLine("scanned $($r.root)")
+  }
+}
+[pscustomobject]@{ disks = @($disks); drives = @($drives); folders = @($folders) } | ConvertTo-Json -Depth 4 -Compress
+"""
+
+
+def powershell() -> str | None:
+    return shutil.which("powershell.exe") or next(
+        (p for p in ("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",)
+         if Path(p).exists()), None)
+
+
+def start_host(folders: bool) -> subprocess.Popen | None:
+    """Start the Windows-side measurement in the background; the folder walk
+    takes minutes, and the Linux side has its own to do meanwhile."""
+    ps = powershell()
+    if not ps:
+        warn("powershell.exe not reachable — no host measurements")
+        return None
+    # One file per run: two runs sharing a name read each other's half-written script.
+    fd, name = tempfile.mkstemp(prefix="reclaim-", suffix=".ps1")
+    with os.fdopen(fd, "w", encoding="utf-8-sig") as handle:
+        handle.write(HOST_PS)
+    winpath = run(["wslpath", "-w", name]).strip()
+    env = dict(os.environ, RECLAIM_FOLDERS="1" if folders else "0",
+               WSLENV=":".join(filter(None, [os.environ.get("WSLENV"), "RECLAIM_FOLDERS"])))
+    proc = subprocess.Popen([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", winpath],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, text=True, env=env, cwd="/")
+    proc.script = name
+    return proc
+
+
+def finish_host(proc: subprocess.Popen | None) -> dict:
+    if proc is None:
+        return {}
+    out, _ = proc.communicate()
+    Path(proc.script).unlink(missing_ok=True)
+    try:
+        data = json.loads(out.strip().lstrip("\ufeff") or "{}")
+    except json.JSONDecodeError:
+        warn("host measurement returned nothing parseable")
+        return {}
+    for key in ("disks", "drives", "folders"):
+        value = data.get(key) or []
+        data[key] = value if isinstance(value, list) else [value]
+    return data
+
+
+# Folders on the host whose contents regenerate or are plainly disposable.
+HOST_KNOWN = {
+    "$recycle.bin": ("regenerable", "Clear-RecycleBin -Force", "emptied recycle bin"),
+    "temp": ("regenerable",
+             "Get-ChildItem $env:TEMP -Force | ? LastWriteTime -lt (Get-Date).AddDays(-7) | Remove-Item -Recurse -Force -EA SilentlyContinue",
+             "temp files older than a week; files in use are skipped"),
+    "windows": ("judgement", "Dism /Online /Cleanup-Image /StartComponentCleanup   # elevated",
+                "only the component store shrinks; never delete by hand"),
+    "hiberfil.sys": ("judgement", "powercfg /hibernate off   # elevated",
+                     "hibernation file; only worth keeping if the machine hibernates"),
+    "pagefile.sys": ("judgement", "", "virtual memory; leave it to Windows"),
+    ".android": ("judgement", "", "emulator images (avd/); delete unused AVDs from Android Studio"),
+    "softwaredistribution": ("regenerable", "Dism /Online /Cleanup-Image /StartComponentCleanup   # elevated",
+                             "update downloads"),
+}
+
+
+# ── the Linux side ──────────────────────────────────────────────────────────
+
+def filesystems() -> list[dict]:
+    out = run(["df", "-B1", "--output=source,fstype,size,used,avail,target"])
+    rows = []
+    for line in out.splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        source, fstype, size, used, avail, target = parts[0], parts[1], *parts[2:5], " ".join(parts[5:])
+        if target == "/" or fstype in ("9p", "drvfs", "v9fs") and re.fullmatch(r"/mnt/[a-z]", target):
+            rows.append({"target": target, "fstype": fstype, "size": int(size),
+                         "used": int(used), "avail": int(avail)})
+    return rows
+
+
+def home_top(top: int) -> list[dict]:
+    out = subprocess.run(["du", "-xB1", "--max-depth=1", str(HOME)],
+                         capture_output=True, text=True).stdout
+    rows = []
+    for line in out.splitlines():
+        size, _, path = line.partition("\t")
+        if size.isdigit() and path != str(HOME):
+            rows.append({"path": path, "bytes": int(size)})
+    return sorted(rows, key=lambda r: -r["bytes"])[:top]
+
+
+def default_branch(repo: Path) -> str | None:
+    ref = run(["git", "-C", str(repo), "symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).strip()
+    if ref:
+        return ref
+    for name in ("main", "master", "trunk"):
+        if run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", name]).strip():
+            return name
+    return None
+
+
+def repos() -> list[Path]:
+    """Primary checkouts under $HOME: a `.git` *directory* (a worktree's is a
+    file). Shallow on purpose — projects sit near the top of a home."""
+    out = run(["find", str(HOME), "-xdev", "-maxdepth", "4", "-name", ".git", "-type", "d",
+               "-not", "-path", "*/.*/*/.git", "-prune"], timeout=120)
+    return sorted({Path(line).parent for line in out.splitlines() if line})
+
+
+def worktrees() -> list[dict]:
+    rows = []
+    for repo in repos():
+        base = default_branch(repo)
+        listing = run(["git", "-C", str(repo), "worktree", "list", "--porcelain"])
+        entries, current = [], {}
+        for line in listing.splitlines() + [""]:
+            if not line:
+                if current:
+                    entries.append(current)
+                current = {}
+                continue
+            key, _, value = line.partition(" ")
+            current[key] = value or True
+        for entry in entries[1:]:          # the first is the primary checkout itself
+            path = Path(entry["worktree"])
+            branch = str(entry.get("branch", "")).removeprefix("refs/heads/") or None
+            merged = None
+            if branch and base:
+                merged = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor",
+                                         branch, base], capture_output=True).returncode == 0
+            dirty = len(run(["git", "-C", str(path), "status", "--porcelain"]).splitlines()) \
+                if path.exists() else 0
+            age = run(["git", "-C", str(repo), "log", "-1", "--format=%ct", branch]).strip() \
+                if branch else ""
+            rows.append({"repo": str(repo), "path": str(path), "branch": branch, "base": base,
+                         "merged": merged, "dirty": dirty, "prunable": "prunable" in entry,
+                         "days": round((time.time() - int(age)) / 86400, 1) if age else None})
+    sizes = du([Path(r["path"]) for r in rows])
+    for r in rows:
+        r["bytes"] = sizes.get(r["path"], 0)
+    return sorted(rows, key=lambda r: -r["bytes"])
+
+
+def build_dirs() -> list[dict]:
+    """Build output a tool regenerates: a cargo `target/` (it writes a
+    CACHEDIR.TAG, the standard marker for exactly this) and `node_modules/`."""
+    out = run(["find", str(HOME), "-xdev", "-maxdepth", "8", "(", "-name", "node_modules",
+               "-o", "-name", "target", ")", "-type", "d", "-prune"], timeout=300)
+    found = []
+    for line in out.splitlines():
+        path = Path(line)
+        if path.name == "target" and not (path / "CACHEDIR.TAG").exists():
+            continue
+        if "/node_modules/" in line or "/.cache/" in line or "/.local/share/" in line:
+            continue
+        found.append(path)
+    sizes = du(found)
+    rows = [{"path": str(p), "kind": "cargo" if p.name == "target" else "node",
+             "bytes": sizes.get(str(p), 0)} for p in found]
+    return sorted([r for r in rows if r["bytes"] > 0], key=lambda r: -r["bytes"])
+
+
+def tool(name: str) -> str | None:
+    return shutil.which(name) or next(
+        (str(p) for p in (HOME / ".local/share/mise/shims" / name, HOME / ".cargo/bin" / name,
+                          HOME / ".bun/bin" / name, HOME / ".local/bin" / name) if p.exists()), None)
+
+
+def first_line(command: list[str]) -> str:
+    return (run(command, timeout=20).strip().splitlines() or [""])[0]
+
+
+# name → (tool, how to find the dir, how to clean it, kind, note).
+# A cache is cleaned through its owner's command, never `rm`: the tool knows
+# its own layout, locks and in-flight downloads.
+CACHES = [
+    ("uv", "uv", lambda t: first_line([t, "cache", "dir"]), ["cache", "clean"], "regenerable", ""),
+    ("pip", "pip3", lambda t: first_line([t, "cache", "dir"]), ["cache", "purge"], "regenerable", ""),
+    ("npm", "npm", lambda t: first_line([t, "config", "get", "cache"]), ["cache", "clean", "--force"],
+     "regenerable", ""),
+    ("pnpm", "pnpm", lambda t: first_line([t, "store", "path"]), ["store", "prune"], "regenerable",
+     "prune keeps what a project still links"),
+    ("yarn", "yarn", lambda t: first_line([t, "cache", "dir"]), ["cache", "clean"], "regenerable", ""),
+    ("bun", "bun", lambda t: str(HOME / ".bun/install/cache"), ["pm", "cache", "rm"], "regenerable", ""),
+    ("go", "go", lambda t: first_line([t, "env", "GOCACHE"]), ["clean", "-cache"], "regenerable", ""),
+    ("gradle", None, lambda t: str(HOME / ".gradle/caches"), None, "judgement",
+     "no clean command; deleting it forces every Android/JVM build to re-download"),
+    ("cargo-registry", None, lambda t: str(HOME / ".cargo/registry"), None, "judgement",
+     "crate sources; safe to drop only while no build runs"),
+    ("huggingface", None, lambda t: os.environ.get("HF_HOME") or str(HOME / ".cache/huggingface"),
+     None, "judgement", "downloaded models; `huggingface-cli delete-cache` picks per model"),
+    ("playwright", None, lambda t: str(HOME / ".cache/ms-playwright"), None, "judgement",
+     "browser binaries; re-downloaded by `playwright install`"),
+]
+
+
+def caches() -> list[dict]:
+    rows = []
+    for name, binary, where, clean, kind, note in CACHES:
+        path = binary and tool(binary)
+        if binary and not path:
+            continue
+        location = where(path)
+        if not location or not Path(location).exists():
+            continue
+        rows.append({"name": name, "path": location, "kind": kind, "note": note,
+                     "clean": [path, *clean] if clean else None})
+    sizes = du([Path(r["path"]) for r in rows])
+    for r in rows:
+        r["bytes"] = sizes.get(r["path"], 0)
+    return sorted([r for r in rows if r["bytes"] > 0], key=lambda r: -r["bytes"])
+
+
+UNIT = {"B": 1, "kB": 1e3, "KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}
+
+
+def docker_bytes(text: str) -> int:
+    match = re.match(r"([\d.]+)\s*([kKMGT]?B)", text or "")
+    return int(float(match.group(1)) * UNIT[match.group(2)]) if match else 0
+
+
+def docker() -> list[dict]:
+    if not tool("docker"):
+        return []
+    out = run(["docker", "system", "df", "--format", "{{json .}}"], timeout=60)
+    rows = []
+    for line in out.splitlines():
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        rows.append({"type": item.get("Type"), "total": docker_bytes(item.get("Size", "")),
+                     "reclaimable": docker_bytes(item.get("Reclaimable", ""))})
+    return rows
+
+
+def system_extras() -> list[dict]:
+    """Things only root can clean. Reported with the command to run, never run."""
+    rows = []
+    journal = run(["journalctl", "--disk-usage"])
+    if match := re.search(r"take up ([\d.]+)([KMGT])", journal):
+        size = float(match.group(1)) * 1024 ** "KMGT".index(match.group(2)) * 1024
+        rows.append({"name": "journal", "bytes": int(size),
+                     "command": "sudo journalctl --vacuum-time=2weeks"})
+    for path, command in (("/var/cache/apt/archives", "sudo apt-get clean"),
+                          ("/var/cache/pacman/pkg", "sudo paccache -r"),
+                          ("/var/cache/dnf", "sudo dnf clean all")):
+        if Path(path).is_dir():
+            size = du([Path(path)]).get(path, 0)
+            if size:
+                rows.append({"name": path, "bytes": size, "command": command})
+    return rows
+
+
+# ── scan ────────────────────────────────────────────────────────────────────
+
+def cmd_scan(args) -> int:
+    wsl = in_wsl()
+    host_proc = start_host(folders=not args.no_host) if wsl else None
+    if host_proc and not args.no_host:
+        say("measuring the Windows host in the background (a few minutes)")
+
+    say("filesystems");   fs = filesystems()
+    say("home");          top = home_top(args.top)
+    say("build output");  builds = build_dirs()
+    say("worktrees");     trees = worktrees()
+    say("caches");        cached = caches()
+    say("docker");        dock = docker()
+    extras = system_extras()
+    host = finish_host(host_proc)
+
+    root_used = next((f["used"] for f in fs if f["target"] == "/"), None)
+    distro = os.environ.get("WSL_DISTRO_NAME")
+    for disk in host.get("disks", []):
+        if disk.get("distro") == distro and root_used:
+            disk["current"] = True
+            disk["slack"] = max(int(disk["allocated"]) - root_used, 0)
+
+    report = {"wsl": wsl, "distro": distro, "filesystems": fs, "home": top, "builds": builds,
+              "worktrees": trees, "caches": cached, "docker": dock, "system": extras,
+              "host": host}
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print_report(report, args.top)
+    return 0
+
+
+def table(title: str, rows: list[tuple]) -> None:
+    if not rows:
+        return
+    print(f"\n\033[1m{title}\033[0m")
+    for row in rows:
+        size, *rest = row
+        print(f"  {size:>8}  " + "  ".join(str(x) for x in rest if x not in (None, "")))
+
+
+def print_report(r: dict, top: int) -> None:
+    table("Filesystems", [(human(f["used"]), f"{f['target']}",
+                           f"of {human(f['size'])}, {human(f['avail'])} free "
+                           f"({f['used'] * 100 // max(f['size'], 1)}%)") for f in r["filesystems"]])
+    host = r["host"]
+    table("Host drives", [(human(d["used"]), d["name"], f"{human(d['free'])} free")
+                          for d in host.get("drives", [])])
+    table("WSL virtual disks (allocated on the host)", [
+        (human(int(d["allocated"])), d["distro"],
+         "sparse" if d["sparse"] else "not sparse",
+         f"≈{human(d['slack'])} free inside, still held on the host" if d.get("slack") else "",
+         d["path"]) for d in host.get("disks", [])])
+
+    table(f"Home, top {top}", [(human(h["bytes"]), h["path"]) for h in r["home"]])
+
+    regen = 0
+    b = r["builds"]
+    regen += sum(x["bytes"] for x in b)
+    table(f"Build output — regenerable, {human(sum(x['bytes'] for x in b))} in {len(b)} dirs",
+          [(human(x["bytes"]), x["kind"], x["path"]) for x in b[:top]])
+
+    def state(w):
+        tags = ["merged" if w["merged"] else "open" if w["merged"] is False else "no branch"]
+        if w["dirty"]:
+            tags.append(f"dirty={w['dirty']}")
+        if w["prunable"]:
+            tags.append("prunable")
+        if w["days"] is not None:
+            tags.append(f"{w['days']:g}d")
+        return " ".join(tags)
+    table("Worktrees — judgement (merged ≠ squash-merged; read before removing)",
+          [(human(w["bytes"]), f"[{w['branch']}]", state(w), w["path"]) for w in r["worktrees"]])
+
+    c = r["caches"]
+    regen += sum(x["bytes"] for x in c if x["kind"] == "regenerable")
+    table("Caches", [(human(x["bytes"]), x["name"], x["kind"], x["note"]) for x in c])
+
+    d = r["docker"]
+    regen += sum(x["reclaimable"] for x in d if x["type"] in ("Build Cache", "Images"))
+    table("Docker (reclaimable of total)", [
+        (human(x["reclaimable"]), x["type"], f"of {human(x['total'])}",
+         "judgement: may hold data" if x["type"] == "Local Volumes" else "") for x in d])
+
+    table("Needs root — commands, not run", [(human(x["bytes"]), x["name"], x["command"])
+                                            for x in r["system"]])
+
+    folders = sorted(host.get("folders", []), key=lambda f: -int(f["bytes"]))
+    rows = []
+    for f in folders[:top * 2]:
+        known = HOST_KNOWN.get(f["path"].rstrip("\\").rsplit("\\", 1)[-1].lower())
+        rows.append((human(int(f["bytes"])), f["path"],
+                     f"{known[0]}: {known[2]}" + (f" → {known[1]}" if known[1] else "") if known else ""))
+    table("Host folders", rows)
+
+    print(f"\n\033[1mRegenerable: ≈{human(regen)}\033[0m (build output, caches, docker build "
+          "cache and unused images — nothing lost, only rebuild or re-download time)")
+    slack = [d for d in host.get("disks", []) if d.get("slack")]
+    if slack:
+        print(f"Space already free inside WSL but held by its disk: ≈{human(slack[0]['slack'])} "
+              "— `reclaim compact` prints how to hand it back.")
+
+
+# ── prune ───────────────────────────────────────────────────────────────────
+
+def free_bytes(path: str = "/") -> int:
+    stat = os.statvfs(path)
+    return stat.f_bavail * stat.f_frsize
+
+
+def execute(commands: list[list[str]], yes: bool) -> int:
+    for command in commands:
+        print("  " + " ".join(command), flush=True)
+    if not yes:
+        say("dry run — add --yes to run the above")
+        return 0
+    before, failed = free_bytes(), 0
+    for command in commands:
+        if subprocess.run(command).returncode != 0:
+            warn(f"failed: {' '.join(command)}")
+            failed += 1
+    say(f"freed ≈{human(free_bytes() - before)} on /")
+    return 1 if failed else 0
+
+
+def cmd_prune(args) -> int:
+    if args.what == "docker":
+        if not tool("docker"):
+            die("docker not found")
+        commands = [["docker", "builder", "prune", "-f"] + (["-a"] if args.all else []),
+                    ["docker", "image", "prune", "-f"] + (["-a"] if args.all else [])]
+        return execute(commands, args.yes)
+
+    if args.what == "caches":
+        rows = [c for c in caches() if c["kind"] == "regenerable" and c["clean"]]
+        if args.targets:
+            unknown = set(args.targets) - {c["name"] for c in rows}
+            if unknown:
+                die(f"not a regenerable cache here: {', '.join(sorted(unknown))}")
+            rows = [c for c in rows if c["name"] in args.targets]
+        return execute([c["clean"] for c in rows], args.yes)
+
+    if args.what == "build":
+        if not args.targets:
+            die("name the build dirs to remove (from `reclaim scan`)")
+        commands = []
+        for target in args.targets:
+            path = Path(target).expanduser().resolve()
+            if not path.is_dir():
+                die(f"{path}: not a directory")
+            if not ((path.name == "target" and (path / "CACHEDIR.TAG").exists())
+                    or path.name == "node_modules"):
+                die(f"{path}: not a build dir this script recognises "
+                    "(a cargo target/ with CACHEDIR.TAG, or node_modules/)")
+            commands.append(["rm", "-rf", "--one-file-system", str(path)])
+        return execute(commands, args.yes)
+    die(f"unknown prune target {args.what}")
+
+
+# ── compact ─────────────────────────────────────────────────────────────────
+
+def cmd_compact(args) -> int:
+    if not in_wsl():
+        die("not inside WSL — nothing to compact from here")
+    host = finish_host(start_host(folders=False))
+    distro = args.distro or os.environ.get("WSL_DISTRO_NAME")
+    disks = [d for d in host.get("disks", []) if d["distro"] == distro]
+    if not disks:
+        die(f"no virtual disk found for distro {distro!r}")
+    disk = disks[0]
+    used = next((f["used"] for f in filesystems() if f["target"] == "/"), 0) \
+        if distro == os.environ.get("WSL_DISTRO_NAME") else None
+    slack = int(disk["allocated"]) - used if used else None
+
+    print(f"# {distro}: {human(int(disk['allocated']))} on the host"
+          + (f", {human(used)} used inside — ≈{human(slack)} to hand back" if used else "")
+          + ("" if disk["sparse"] else ", not sparse"))
+    print(f"""
+# 1. Here, inside {distro}: tell the disk which blocks are free
+sudo fstrim -av
+
+# 2. Windows PowerShell, as Administrator. This stops EVERY distro — and this session.
+wsl --shutdown""")
+    if not disk["sparse"]:
+        print(f"""
+# 3a. Once: make the disk sparse, so it gives space back on its own from now on
+wsl --manage {distro} --set-sparse true""")
+    print(f"""
+# 3b. Hand back what is free right now
+@'
+select vdisk file="{disk['path']}"
+attach vdisk readonly
+compact vdisk
+detach vdisk
+'@ | Set-Content -Encoding ascii $env:TEMP\\reclaim-compact.txt
+diskpart /s $env:TEMP\\reclaim-compact.txt
+
+# 4. Start the distro again and check what the host holds now
+wsl -d {distro} -- true""")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="reclaim", description=__doc__.splitlines()[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    scan = sub.add_parser("scan", help="measure everything, change nothing")
+    scan.add_argument("--json", action="store_true")
+    scan.add_argument("--no-host", action="store_true", help="skip the slow Windows folder walk")
+    scan.add_argument("--top", type=int, default=15)
+    scan.set_defaults(func=cmd_scan)
+
+    prune = sub.add_parser("prune", help="remove what regenerates (dry run without --yes)")
+    prune.add_argument("what", choices=["docker", "caches", "build"])
+    prune.add_argument("targets", nargs="*")
+    prune.add_argument("--all", action="store_true", help="docker: all unused images, not just dangling")
+    prune.add_argument("--yes", action="store_true")
+    prune.set_defaults(func=cmd_prune)
+
+    compact = sub.add_parser("compact", help="print the commands that shrink a WSL disk")
+    compact.add_argument("--distro")
+    compact.set_defaults(func=cmd_compact)
+
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

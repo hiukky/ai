@@ -172,8 +172,8 @@
     },
     {
       "name": "env",
-      "description": "Machine and environment management through dotfiles: a machine is a build product of its chezmoi source directory, so installing a tool or changing a config means writing it there and applying, never by hand. Reads the setup's own lanes and conventions instead of assuming a package manager, and answers \"is it in sync?\" on all four axes - machine, source, remote, and what was never provisioned at all.",
-      "manifestDescription": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it.",
+      "description": "Machine and environment management through dotfiles: a machine is a build product of its chezmoi source directory, so installing a tool or changing a config means writing it there and applying, never by hand. Reads the setup's own lanes and conventions instead of assuming a package manager, and answers \"is it in sync?\" on all four axes - machine, source, remote, and what was never provisioned at all. The `reclaim` skill finds what fills the disks - Linux, WSL virtual disks and the Windows host - prunes what regenerates, puts the rest in front of you, and prints the commands that shrink a WSL vhdx.",
+      "manifestDescription": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it. Plus the other half of keeping a machine healthy: finding what fills its disks and giving the space back.",
       "keywords": [
         "dotfiles",
         "chezmoi",
@@ -181,9 +181,29 @@
         "provisioning",
         "wsl",
         "machine",
-        "drift"
+        "drift",
+        "disk-space",
+        "cleanup",
+        "docker",
+        "vhdx"
       ],
       "skills": [
+        {
+          "id": "reclaim",
+          "name": "reclaim",
+          "plugin": "env",
+          "description": "Find what is filling a machine's disks and give the space back - measure the Linux side, the WSL virtual disks and the Windows host in one pass, prune what regenerates (docker build cache and unused images, package-manager caches, cargo target/ and node_modules/), put everything that needs a decision in front of the person, and finish with the exact commands that shrink a WSL disk on the host. Use whenever someone asks what is taking up space, why a disk (C:, the home dir, the WSL distro) is full or almost full, to free or clean up disk space, to prune docker or old builds, or whether and how to compact, shrink or optimize a WSL vhdx. Machine-scoped - applies in any project, or in none. Not for deleting a project's source or a user's documents, not for provisioning (that is `sync`), and not for a one-off `du` on a single directory.",
+          "invoke": {
+            "model": true,
+            "user": true
+          },
+          "compatibility": "Linux with python3, du, find and df. Under WSL2 it also measures the Windows host through powershell.exe and prints the host-side compaction; elsewhere those sections are simply absent. docker, git and each package manager are used only if present.",
+          "references": [],
+          "scripts": [
+            "reclaim"
+          ],
+          "path": "env/skills/reclaim"
+        },
         {
           "id": "sync",
           "name": "sync",
