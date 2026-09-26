@@ -112,10 +112,13 @@ reclaim compact
 
 It prints the sequence with this machine's distro name and disk path filled
 in: `fstrim` inside the distro, `wsl --shutdown`, a one-time
-`wsl --manage <distro> --set-sparse true` if the disk is not sparse yet, and a
-`diskpart` compaction. **Print it; never run it.** `wsl --shutdown` stops every
-distro, including the one this agent runs in, and `diskpart` needs an elevated
-prompt on the host. End the session with those commands as the final thing the
+`wsl --manage <distro> --set-sparse true` if the disk is not sparse yet, and the
+compaction itself: `Optimize-VHD -Mode Full` when the host has it (the Hyper-V
+module, on Pro/Enterprise with Hyper-V enabled), `diskpart` otherwise. Both
+give the same result; the script asks the host which one exists, so pass its
+output through rather than swapping one for the other. **Print it; never run
+it.** `wsl --shutdown` stops every distro, including the one this agent runs
+in, and the compaction needs an elevated prompt on the host. End the session with those commands as the final thing the
 person reads, plus the expected result (the scan's slack number).
 
 A disk made sparse gives space back on its own from then on, so the manual

@@ -135,7 +135,10 @@ if ($env:RECLAIM_FOLDERS -eq '1') {
     [Console]::Error.WriteLine("scanned $($r.root)")
   }
 }
-[pscustomobject]@{ disks = @($disks); drives = @($drives); folders = @($folders) } | ConvertTo-Json -Depth 4 -Compress
+# Optimize-VHD ships with the Hyper-V module: present on Pro/Enterprise with
+# Hyper-V enabled, absent on Home. diskpart is the fallback everywhere.
+$optimize = [bool](Get-Command Optimize-VHD -ErrorAction SilentlyContinue)
+[pscustomobject]@{ disks = @($disks); drives = @($drives); folders = @($folders); optimize_vhd = $optimize } | ConvertTo-Json -Depth 4 -Compress
 """
 
 
@@ -578,16 +581,21 @@ wsl --shutdown""")
         print(f"""
 # 3a. Once: make the disk sparse, so it gives space back on its own from now on
 wsl --manage {distro} --set-sparse true""")
-    print(f"""
-# 3b. Hand back what is free right now
+    if host.get("optimize_vhd"):
+        print(f"""
+# 3b. Hand back what is free right now (Optimize-VHD, from the Hyper-V module)
+Optimize-VHD -Path "{disk['path']}" -Mode Full""")
+    else:
+        print(f"""
+# 3b. Hand back what is free right now (diskpart: Optimize-VHD is not on this host)
 @'
 select vdisk file="{disk['path']}"
 attach vdisk readonly
 compact vdisk
 detach vdisk
 '@ | Set-Content -Encoding ascii $env:TEMP\\reclaim-compact.txt
-diskpart /s $env:TEMP\\reclaim-compact.txt
-
+diskpart /s $env:TEMP\\reclaim-compact.txt""")
+    print(f"""
 # 4. Start the distro again and check what the host holds now
 wsl -d {distro} -- true""")
     return 0
