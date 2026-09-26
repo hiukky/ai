@@ -2,6 +2,27 @@ import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 import { Sparkle } from '@/components/sparkle';
 import { appName, repoUrl, uze } from './shared';
 
+/*
+  The runtime this marketplace is installed through. Nothing here installs
+  without it, so it is the one link given a border rather than left as a peer
+  of the internal ones: in the top nav on the home page, at the foot of the
+  sidebar in the docs.
+*/
+export function UzeLink({ className = '' }: { className?: string }) {
+  return (
+    <a
+      href={uze.url}
+      target="_blank"
+      rel="noreferrer"
+      className={`inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-mono text-xs text-ink transition-colors hover:border-accent hover:text-accent ${className}`}
+    >
+      <span className="size-1.5 bg-accent" aria-hidden />
+      {uze.name}
+      <span aria-hidden>&#8599;</span>
+    </a>
+  );
+}
+
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
@@ -24,24 +45,7 @@ export function baseOptions(): BaseLayoutProps {
         url: '/docs/plugins/skills',
         active: 'nested-url',
       },
-      {
-        // The runtime this marketplace is installed through. Nothing here
-        // installs without it, so it is the one nav item given a border rather
-        // than left as a peer of the internal links.
-        type: 'custom',
-        children: (
-          <a
-            href={uze.url}
-            target="_blank"
-            rel="noreferrer"
-            className="ms-1 inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-mono text-xs text-ink transition-colors hover:border-accent hover:text-accent"
-          >
-            <span className="size-1.5 bg-accent" aria-hidden />
-            {uze.name}
-            <span aria-hidden>&#8599;</span>
-          </a>
-        ),
-      },
+      { type: 'custom', children: <UzeLink className="ms-1" /> },
     ],
     githubUrl: repoUrl,
   };
