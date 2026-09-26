@@ -8,7 +8,7 @@
     {
       "name": "openspec",
       "source": "./openspec",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "description": "Specs before code, ADRs only when they earn it, architecture diagrams kept current. Can work a change's task list unattended.",
       "keywords": [
         "openspec",
         "adr",
@@ -23,7 +23,7 @@
     {
       "name": "git",
       "source": "./git",
-      "description": "Personal git workflow conventions: a Conventional Commits skill and a pull/merge request skill (gitflow branches, conventional titles).",
+      "description": "Conventional Commits made when the work is done, and pull requests named like the history they become.",
       "keywords": [
         "git",
         "commit",
@@ -34,7 +34,7 @@
     {
       "name": "tui",
       "source": "./tui",
-      "description": "Terminal UI media - starting with a record skill that generates a demo video from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in.",
+      "description": "Turns a terminal UI into a demo GIF: written as a spec, recorded in a sandbox, scanned for leaks.",
       "keywords": [
         "tui",
         "asciinema",
@@ -48,7 +48,7 @@
     {
       "name": "env",
       "source": "./env",
-      "description": "Machine and environment management through dotfiles: a machine is a build product of its chezmoi source directory, so installing a tool or changing a config means writing it there and applying, never by hand. Reads the setup's own lanes and conventions instead of assuming a package manager, and answers \"is it in sync?\" on all four axes - machine, source, remote, and what was never provisioned at all. The `reclaim` skill finds what fills the disks - Linux, WSL virtual disks and the Windows host - prunes what regenerates, puts the rest in front of you, and prints the commands that shrink a WSL vhdx.",
+      "description": "Every install goes through your dotfiles, so the machine can be rebuilt from them. Plus: find what fills the disk and free it.",
       "keywords": [
         "dotfiles",
         "chezmoi",

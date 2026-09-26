@@ -17,11 +17,11 @@ export function baseOptions(): BaseLayoutProps {
       {
         text: 'Plugins',
         url: '/docs/plugins',
-        active: 'nested-url',
+        active: 'url',
       },
       {
         text: 'Skills',
-        url: '/docs/skills',
+        url: '/docs/plugins/skills',
         active: 'nested-url',
       },
       {

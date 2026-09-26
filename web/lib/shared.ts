@@ -1,7 +1,7 @@
 export const appName = 'ai';
 export const appTagline = 'Personal AI tooling. Portable by default.';
 export const appDescription =
-  'A UZE marketplace of self-contained plugins: an engineering standard, git conventions, and a toolkit for recording terminal UIs. Every capability is a skill your agent discovers on its own.';
+  'Plugins for coding agents: an engineering standard, git conventions, terminal demos, dotfiles. Your agent reaches for them on its own.';
 
 export const docsRoute = '/docs';
 export const docsImageRoute = '/og/docs';
@@ -23,9 +23,15 @@ export const marketplace = {
   alias: 'ai',
 };
 
+/** The two install scopes, as every page spells them. */
+export const installCommand = {
+  project: (plugin: string) => `uze ${plugin}@${marketplace.alias}`,
+  machine: (plugin: string) => `uze install ${plugin}@${marketplace.alias} -m`,
+};
+
 export const uze = {
   name: 'uze',
-  url: 'https://uze.hiukky.com',
-  repo: 'https://github.com/hiukky/uze',
-  install: 'curl -fsSL https://uze.hiukky.com/i | sh',
+  url: 'https://uze.sh',
+  repo: 'https://github.com/uze-sh/uze',
+  install: 'curl -fsSL https://uze.sh/i | sh',
 };

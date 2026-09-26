@@ -1,3 +1,6 @@
 {
-  "pages": ["index", "openspec", "git", "tui", "env"]
+  "title": "Plugins",
+  "icon": "Puzzle",
+  "defaultOpen": true,
+  "pages": ["index", "openspec", "git", "tui", "env", "skills"]
 }

@@ -1,85 +1,52 @@
 ---
 title: git
-description: Conventional Commits written proactively, and pull requests named like the history they will become
+description: Commits in Conventional Commits, made when the work is done, and pull requests named like the history they become
+icon: GitBranch
 ---
-
-Two skills covering the two moments a change becomes part of a project's
-history: the commit, and the request to merge it.
 
 <PluginHeader name="git" />
 
-## The skills
+## Commits without being asked
 
-<PluginSkills name="git" />
+`commit` commits when a unit of work is done, not when someone remembers to
+ask. Done means all three:
 
-## Commits happen without being asked
+1. A complete step: a feature, a fix, a task. Not half a function.
+2. It builds and the fast tests pass.
+3. Nothing unrelated is mixed in. If it is, the commit is split first.
 
-`commit` is written to fire on its own initiative. Waiting for someone to say
-"commit this" is the failure mode the skill exists to prevent. Finished work
-sitting uncommitted is worse than a commit you can amend.
+It holds off while the approach is still being discussed, or when you said to
+wait.
 
-A unit of work is finished when **all three** hold:
-
-1. It is a complete, coherent step: a feature implemented, a bug fixed, a
-   checklist task done. Not a half-written function, not a mid-task detour.
-2. It builds or typechecks, and fast relevant tests pass. Unverified code does
-   not get committed.
-3. The tree does not mix that finished unit with unrelated work in progress,
-   otherwise it splits first.
-
-And it explicitly holds off when the conversation has not converged on an
-approach, when the state is an intermediate one mid-task, or when you have said
-to wait, which overrides the skill until you say otherwise.
-
-## The format
-
-```
-<type>[optional scope][!]: <description>
-
-[optional body]
-
-[optional footer(s)]
+```text
+<type>[scope][!]: <description>
 ```
 
 `feat` · `fix` · `docs` · `style` · `refactor` · `perf` · `test` · `build` ·
-`ci` · `chore` · `revert`.
+`ci` · `chore` · `revert`. The type comes from the diff, not from how the task
+was named. The body says why, and is left out when the change explains itself.
 
-The type comes from **the diff, not the request**: what changed, not what
-someone called it. Description is imperative, lowercase, no trailing period.
-The body says *why*, never restating the diff, and is omitted entirely for
-self-explanatory changes. `!` or a `BREAKING CHANGE:` footer only when it is
-genuinely breaking.
+## Pushes, but never forces
 
-## Push, and the line it will not cross
+A commit is pushed right after. These always ask first: `--force` and
+`--force-with-lease`, a push to a protected branch, anything that rewrites
+pushed history.
 
-Pushing follows the commit by default: `git push`, or `-u origin <branch>` for
-a new branch. A rejected push means `git pull --rebase` and retry.
+## Pull requests
 
-What stays outside the proactive default, always requiring confirmation:
-force-push (`--force`/`--force-with-lease`), pushing to a shared or protected
-branch, and anything that rewrites already-pushed history. "Fix the commit
-message" on a pushed commit is not blanket authorization to force-push.
+The title is a Conventional Commit line; the branch follows gitflow.
 
-## Branches and titles
-
-A PR is the unit of review, so it is named like the unit of history it becomes:
-**title is a Conventional Commit line, branch follows gitflow.**
-
-| Prefix | For |
+| Branch | For |
 | --- | --- |
-| `feature/` | a new capability or change set |
-| `fix/` | a bug fix that is not urgent |
-| `hotfix/` | an urgent fix cut from the production branch |
+| `feature/` | a new capability |
+| `fix/` | a bug fix |
+| `hotfix/` | an urgent fix from the production branch |
 | `release/` | release preparation |
-| `chore/` `docs/` `ci/` `refactor/` | maintenance-only branches |
+| `chore/` `docs/` `ci/` `refactor/` | maintenance |
 
-One topic per branch, lowercase kebab-case, no ticket-only names. `fix/123`
-says nothing, `fix/123-hook-stop-shape` does.
+`fix/123-hook-stop-shape`, not `fix/123`. A working branch like `agent/<id>`
+is renamed before it is published.
 
-Agent-isolation branches (`agent/<id>`, the ones UZE's workspace creates) are
-**working** names, not review names. Rename before publishing; never open a PR
-from one.
+## Skills
 
-The body carries what a reviewer needs and nothing a diff already says: what
-changes (by behaviour, not by file), why, verification with actual numbers,
-review points the author wants confirmed or overturned, and refs.
+<PluginSkills name="git" />

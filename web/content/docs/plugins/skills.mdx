@@ -1,0 +1,29 @@
+---
+title: All skills
+description: Every skill in the catalog, and who may call it
+icon: ListChecks
+---
+
+<SkillTable />
+
+## Who calls a skill
+
+| Label | The agent | You |
+| --- | --- | --- |
+| **model + user** | uses it when the work matches | call it by name |
+| **user only** | never triggers it | call it by name |
+| **model only** | uses it | nothing to call |
+
+Almost every skill is **model + user**: a skill that waits to be asked is
+documentation with extra steps. **User only** is for skills that change a
+repository's structure, like `openspec:init`.
+
+## Calling one by name
+
+| Agent | Call |
+| --- | --- |
+| Claude Code, Antigravity | `/git:commit` |
+| Codex | `$git:commit` |
+| OpenCode | `@git:commit` |
+
+Add what you want after the name: `/tui:record a 30s hero for the README`.

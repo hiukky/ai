@@ -1,19 +1,28 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import type { Metadata } from 'next';
 import './global.css';
 import { appDescription, appName, appTagline } from '@/lib/shared';
 import { palette } from '@/lib/palette';
 
-const sans = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+// IBM's own hinted release of Plex, the same as uze.sh uses: Google serves an
+// unhinted build that Windows renders with uneven strokes. OFL-1.1, beside them.
+const sans = localFont({
+  src: [
+    { path: './fonts/IBMPlexSans-Regular.woff2', weight: '400' },
+    { path: './fonts/IBMPlexSans-Medium.woff2', weight: '500' },
+    { path: './fonts/IBMPlexSans-SemiBold.woff2', weight: '600' },
+  ],
   variable: '--font-body',
 });
 
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '700'],
+const mono = localFont({
+  src: [
+    { path: './fonts/IBMPlexMono-Regular.woff2', weight: '400' },
+    { path: './fonts/IBMPlexMono-Medium.woff2', weight: '500' },
+    { path: './fonts/IBMPlexMono-SemiBold.woff2', weight: '600' },
+    { path: './fonts/IBMPlexMono-Bold.woff2', weight: '700' },
+  ],
   variable: '--font-ui-mono',
 });
 

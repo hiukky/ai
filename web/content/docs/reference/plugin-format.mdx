@@ -1,0 +1,57 @@
+---
+title: Plugin format
+description: What a plugin in this catalog is made of
+icon: Blocks
+---
+
+Every plugin follows [Agent Plugins 1.0](https://agent-plugins.org) and lives
+in its own folder at the repository root. Only the folders in use exist.
+
+<Files>
+  <File name="marketplace.json" />
+  <Folder name="<plugin>" defaultOpen>
+    <File name="plugin.json" />
+    <File name="README.md" />
+    <Folder name="skills" defaultOpen>
+      <Folder name="<skill>" defaultOpen>
+        <File name="SKILL.md" />
+        <Folder name="references" />
+        <Folder name="scripts" />
+      </Folder>
+    </Folder>
+    <Folder name="resources" />
+    <Folder name="agents" />
+    <Folder name="hooks" />
+    <File name=".mcp.json" />
+  </Folder>
+</Files>
+
+| Path | Holds |
+| --- | --- |
+| `marketplace.json` | the catalog: each plugin's `name`, `source`, `description`, `keywords` |
+| `plugin.json` | the plugin's manifest |
+| `skills/<s>/SKILL.md` | the skill, and who may call it |
+| `skills/<s>/references/` | long material the agent reads when it needs it |
+| `skills/<s>/scripts/` | executables the skill runs |
+| `resources/` | files a skill copies into your project |
+| `agents/`, `hooks/`, `.mcp.json` | subagents, hooks, MCP servers |
+
+## Who may call a skill
+
+Set in the skill's frontmatter. Leave it out for the default, **model + user**:
+
+```yaml
+invoke:
+  model: false   # the agent never triggers it
+  user: true     # you call it by name
+```
+
+uze turns this into each agent's own form: a slash command, a `$name`, or
+plain discovery.
+
+## Checking a plugin
+
+```bash
+uze agent plugin check <plugin>   # one plugin, offline
+uze agent market check .          # the whole catalog
+```

@@ -1,0 +1,67 @@
+---
+title: Quickstart
+description: From nothing to a plugin in your agent, in three commands
+icon: Zap
+---
+
+## 1. Install uze
+
+uze installs these plugins and delivers them to every coding agent you use.
+Skip this if you have it.
+
+<InstallCommand command="curl -fsSL https://uze.sh/i | sh" />
+
+Then set up the agents you use:
+
+```bash
+uze setup
+```
+
+Other platforms: [uze.sh/docs/installation](https://uze.sh/docs/installation).
+
+## 2. Add the catalog
+
+<InstallCommand command="uze market add hiukky/ai" />
+
+Every plugin is now `<name>@ai`.
+
+## 3. Take a plugin
+
+<Tabs items={['This project', 'This machine']}>
+  <Tab value="This project">
+    ```bash
+    uze git@ai
+    ```
+
+    Written to the project's `agents.yaml` and `agents.lock`. Commit them, and
+    anyone who clones the project gets the same plugins.
+  </Tab>
+  <Tab value="This machine">
+    ```bash
+    uze install git@ai -m
+    ```
+
+    Every project on this machine, nothing written to the repository.
+  </Tab>
+</Tabs>
+
+## 4. Use it
+
+Nothing to wire up. Finish a piece of work and `git:commit` commits it. Call a
+skill by name when you want it explicitly:
+
+| Agent | Call |
+| --- | --- |
+| Claude Code, Antigravity | `/git:commit` |
+| Codex | `$git:commit` |
+| OpenCode | `@git:commit` |
+
+```bash
+uze status        # the plugins in this project
+uze inspect git   # what it carries, and how each agent receives it
+```
+
+<Cards>
+  <Card icon={<LayoutGrid />} title="The catalog" href="/docs/plugins" />
+  <Card icon={<ListChecks />} title="All skills" href="/docs/plugins/skills" />
+</Cards>

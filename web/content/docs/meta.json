@@ -1,13 +1,10 @@
 {
   "pages": [
-    "---Start here---",
+    "---[Rocket]Introduction---",
     "index",
-    "getting-started",
-    "---Catalog---",
+    "quickstart",
+    "---[Library]Catalog---",
     "plugins",
-    "skills",
-    "---Reference---",
-    "anatomy",
-    "authoring"
+    "reference"
   ]
 }

@@ -102,6 +102,15 @@ if (!existsSync(join(repoRoot, 'marketplace.json'))) {
   process.exit(0);
 }
 
+/* A plugin's icon is its docs page's `icon:` frontmatter, the same one the
+   sidebar shows, so a card and its sidebar entry cannot disagree. */
+function readIcon(name) {
+  const page = join(webRoot, 'content', 'docs', 'plugins', `${name}.mdx`);
+  if (!existsSync(page)) return null;
+  const { icon } = frontmatter(readFileSync(page, 'utf8'));
+  return typeof icon === 'string' ? icon : null;
+}
+
 const market = JSON.parse(readFileSync(join(repoRoot, 'marketplace.json'), 'utf8'));
 
 const catalog = {
@@ -116,6 +125,7 @@ const catalog = {
       description: entry.description,
       manifestDescription: manifest.description ?? entry.description,
       keywords: entry.keywords ?? [],
+      icon: readIcon(entry.name),
       skills: readSkills(entry.name, dir),
       carries: capabilitySlots
         .filter(([path]) => existsSync(join(dir, path)))

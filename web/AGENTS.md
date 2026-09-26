@@ -28,7 +28,7 @@ Consequences worth knowing before editing:
   `<PluginHeader name>`, `<PluginSkills name>`, `<PluginResources name>` or
   `<SkillTable />`. They all read the live catalog and take no facts as props.
 - Adding a plugin to `../marketplace.json` puts it on the landing page, in
-  `/docs/plugins` and in `/docs/skills` with no edit here. Only its own page
+  `/docs/plugins` and in `/docs/plugins/skills` with no edit here. Only its own page
   (`content/docs/plugins/<name>.mdx`, plus an entry in that folder's
   `meta.json`) is hand-written.
 - The generator runs at build time only, so nothing in the deployed app touches
@@ -44,6 +44,13 @@ URL overrides it for a visit (`?palette=` clears). No component names a hex
 value. If you find yourself writing one, add a token instead.
 
 ## Docs pages
+
+The sidebar is Introduction (Welcome, Quickstart), then the `plugins/` and
+`reference/` folders, each with a lucide icon. Every page carries an `icon:`
+in its frontmatter; a plugin page's icon is also read by the catalog
+generator, so its card and its sidebar entry show the same one. Pages are one
+or two screens: what it does, the commands, a table. A page that moves keeps
+its old URL through `redirects()` in `next.config.mjs`.
 
 Frontmatter `title` is rendered by `DocsTitle`, so an MDX file must **not** open
 with its own `# Heading`, which prints the title twice and adds a redundant

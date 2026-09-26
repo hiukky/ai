@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import { icons } from 'lucide-react';
 import { getPlugin, invokeLabel, plugins, skills, summarize, type Plugin, type Skill } from '@/lib/catalog';
-import { gitConfig, marketplace, repoUrl } from '@/lib/shared';
+import { gitConfig, installCommand, repoUrl } from '@/lib/shared';
 import { InstallCommand } from './install-command';
 
 /*
@@ -12,6 +13,12 @@ import { InstallCommand } from './install-command';
 
 function sourceUrl(path: string) {
   return `${repoUrl}/blob/${gitConfig.branch}/${path}`;
+}
+
+/** The plugin's lucide icon, as its docs page declares it. */
+export function PluginIcon({ plugin, className }: { plugin: Plugin; className?: string }) {
+  const Icon = icons[(plugin.icon ?? '') as keyof typeof icons] ?? icons.Puzzle;
+  return <Icon className={className} aria-hidden />;
 }
 
 export function InvokeBadge({ skill }: { skill: Skill }) {
@@ -82,8 +89,9 @@ export function SkillTable({ plugin }: { plugin?: string }) {
 export function PluginCard({ plugin }: { plugin: Plugin }) {
   return (
     <li className="ai-card group flex flex-col p-6">
-      <div className="flex items-baseline justify-between gap-4">
-        <h3 className="font-mono text-base font-semibold text-ink">
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="inline-flex items-center gap-2.5 font-mono text-base font-semibold text-ink">
+          <PluginIcon plugin={plugin} className="size-4 shrink-0 text-accent" />
           {/* Stretched over the whole card, see .ai-card-target in global.css. */}
           <Link
             href={`/docs/plugins/${plugin.name}`}
@@ -140,7 +148,7 @@ export function PluginHeader({ name }: { name: string }) {
 
   return (
     <div className="not-prose my-8 space-y-6">
-      <dl className="grid gap-x-8 gap-y-4 border-y border-line py-5 sm:grid-cols-3">
+      <dl className="grid gap-x-8 gap-y-4 border-y border-line py-5 sm:grid-cols-2">
         <div>
           <dt className="font-mono text-[11px] text-muted">Skills</dt>
           <dd className="mt-1 font-mono text-sm text-ink">
@@ -151,21 +159,11 @@ export function PluginHeader({ name }: { name: string }) {
           <dt className="font-mono text-[11px] text-muted">Carries</dt>
           <dd className="mt-1 font-mono text-sm text-ink">{plugin.carries.join(' · ')}</dd>
         </div>
-        <div>
-          <dt className="font-mono text-[11px] text-muted">Keywords</dt>
-          <dd className="mt-1 font-mono text-sm text-ink">{plugin.keywords.join(' · ')}</dd>
-        </div>
       </dl>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <InstallCommand
-          label="on this machine, for every project"
-          command={`uze plugin install ${plugin.name}@${marketplace.alias}`}
-        />
-        <InstallCommand
-          label="in this project only, written to agents.lock"
-          command={`uze ${plugin.name}@${marketplace.alias}`}
-        />
+        <InstallCommand label="this project" command={installCommand.project(plugin.name)} />
+        <InstallCommand label="this machine" command={installCommand.machine(plugin.name)} />
       </div>
     </div>
   );

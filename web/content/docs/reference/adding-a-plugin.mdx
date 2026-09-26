@@ -1,0 +1,86 @@
+---
+title: Adding a plugin
+description: Four files, and the site picks up the rest
+icon: PackagePlus
+---
+
+## 1. The plugin
+
+`<name>/plugin.json`:
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "<name>",
+  "description": "One sentence for someone deciding whether to install it."
+}
+```
+
+## 2. A skill
+
+`<name>/skills/<skill>/SKILL.md`:
+
+```markdown
+---
+name: <skill>
+description: >-
+  What it does, the phrasings and situations that should trigger it,
+  and what it is not for.
+---
+```
+
+The `description` is what the agent matches against, so name real phrasings
+("commit this", "faz um commit") and the boundaries. Add `invoke:` only to make
+a skill [user only](/docs/reference/plugin-format#who-may-call-a-skill).
+
+## 3. The catalog
+
+Add it to `marketplace.json`:
+
+```json
+{
+  "name": "<name>",
+  "source": "./<name>",
+  "description": "What a person reads in the catalog.",
+  "keywords": ["…"]
+}
+```
+
+## 4. Its page
+
+`web/content/docs/plugins/<name>.mdx`, plus `"<name>"` in that folder's
+`meta.json`:
+
+```mdx
+---
+title: <name>
+description: One line.
+icon: Puzzle
+---
+
+<PluginHeader name="<name>" />
+
+## Skills
+
+<PluginSkills name="<name>" />
+```
+
+`icon` is any [lucide](https://lucide.dev/icons) name; the sidebar and the
+catalog cards both use it. Everything else (the cards, the skill table, the
+install commands) is generated from the repository at build time.
+
+| Component | Renders |
+| --- | --- |
+| `<PluginCards />` | every plugin as a card |
+| `<PluginHeader name />` | skills, contents, install commands |
+| `<PluginSkills name />` | one section per skill |
+| `<PluginResources name />` | the plugin's `resources/` |
+| `<SkillTable plugin? />` | the skill table |
+
+## Try it locally
+
+```bash
+uze market link ai .      # installs read this checkout
+uze agent plugin check <name>
+cd web && bun install && bun run dev
+```

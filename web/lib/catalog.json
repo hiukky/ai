@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "openspec",
-      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "description": "Specs before code, ADRs only when they earn it, architecture diagrams kept current. Can work a change's task list unattended.",
       "manifestDescription": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
       "keywords": [
         "openspec",
@@ -18,6 +18,7 @@
         "autonomous",
         "unattended"
       ],
+      "icon": "FileCheck",
       "skills": [
         {
           "id": "adr",
@@ -83,7 +84,7 @@
     },
     {
       "name": "git",
-      "description": "Personal git workflow conventions: a Conventional Commits skill and a pull/merge request skill (gitflow branches, conventional titles).",
+      "description": "Conventional Commits made when the work is done, and pull requests named like the history they become.",
       "manifestDescription": "Personal git workflow conventions: Conventional Commits and gitflow-named pull/merge requests.",
       "keywords": [
         "git",
@@ -91,6 +92,7 @@
         "conventional-commits",
         "workflow"
       ],
+      "icon": "GitBranch",
       "skills": [
         {
           "id": "commit",
@@ -131,7 +133,7 @@
     },
     {
       "name": "tui",
-      "description": "Terminal UI media - starting with a record skill that generates a demo video from a spec: one file says what the video shows and how to rebuild the sandbox it was recorded in.",
+      "description": "Turns a terminal UI into a demo GIF: written as a spec, recorded in a sandbox, scanned for leaks.",
       "manifestDescription": "Terminal UI media: recording a TUI as a demo video people will actually watch — isolated, verified, reproducible.",
       "keywords": [
         "tui",
@@ -142,6 +144,7 @@
         "recording",
         "documentation"
       ],
+      "icon": "Clapperboard",
       "skills": [
         {
           "id": "record",
@@ -172,7 +175,7 @@
     },
     {
       "name": "env",
-      "description": "Machine and environment management through dotfiles: a machine is a build product of its chezmoi source directory, so installing a tool or changing a config means writing it there and applying, never by hand. Reads the setup's own lanes and conventions instead of assuming a package manager, and answers \"is it in sync?\" on all four axes - machine, source, remote, and what was never provisioned at all. The `reclaim` skill finds what fills the disks - Linux, WSL virtual disks and the Windows host - prunes what regenerates, puts the rest in front of you, and prints the commands that shrink a WSL vhdx.",
+      "description": "Every install goes through your dotfiles, so the machine can be rebuilt from them. Plus: find what fills the disk and free it.",
       "manifestDescription": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it. Plus the other half of keeping a machine healthy: finding what fills its disks and giving the space back.",
       "keywords": [
         "dotfiles",
@@ -187,6 +190,7 @@
         "docker",
         "vhdx"
       ],
+      "icon": "MonitorCog",
       "skills": [
         {
           "id": "reclaim",

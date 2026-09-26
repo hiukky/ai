@@ -40,6 +40,8 @@ export type Plugin = {
   /** plugin.json description, the one the manifest carries */
   manifestDescription: string;
   keywords: string[];
+  /** lucide icon name, from the plugin's docs page frontmatter */
+  icon: string | null;
   skills: Skill[];
   /** capability directories actually present, in Agent Plugins 1.0 terms */
   carries: string[];

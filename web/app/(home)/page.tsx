@@ -3,7 +3,7 @@ import { InstallCommand } from '@/components/install-command';
 import { PluginCard } from '@/components/catalog';
 import { Sparkle } from '@/components/sparkle';
 import { plugins, skills } from '@/lib/catalog';
-import { appName, appTagline, marketplace, repoUrl, uze } from '@/lib/shared';
+import { appName, appTagline, installCommand, marketplace, repoUrl, uze } from '@/lib/shared';
 
 /*
   Icon sources: Claude Code and OpenCode are simple-icons paths, recolored to
@@ -28,19 +28,19 @@ const policies = [
     label: 'model + user',
     accent: false,
     title: 'The default',
-    body: 'No invoke: block at all. The agent finds the skill on its own when the work matches, and a person can still call it by name. Almost every skill here is this.',
+    body: 'The agent uses it when the work matches; you can call it by name. Almost every skill.',
   },
   {
     label: 'user only',
     accent: true,
     title: 'A deliberate action',
-    body: 'model: false. Something that rewrites a project’s scaffolding once and should never fire because a sentence sounded close enough. openspec:init is one.',
+    body: 'Runs only when you call it. For skills that restructure a repository, like openspec:init.',
   },
   {
     label: 'model only',
     accent: true,
     title: 'Background work',
-    body: 'user: false. A capability that has no meaning as a command someone types. Nothing here needs it yet, but the slot exists so the policy stays a policy, not a convention.',
+    body: 'The agent uses it; there is nothing to call. None in the catalog yet.',
   },
 ];
 
@@ -63,9 +63,8 @@ export default function HomePage() {
         </h1>
 
         <p className="mx-auto mt-6 max-w-[58ch] text-lg leading-relaxed text-muted">
-          A {uze.name} marketplace of self-contained plugins: an engineering standard, git
-          conventions, a toolkit for recording terminal UIs. Every capability is a skill an agent
-          reaches for on its own, in whichever coding agent you happen to be in.
+          Plugins for coding agents: an engineering standard, git conventions, terminal demos,
+          dotfiles. Your agent reaches for them on its own.
         </p>
 
         <div className="ai-bloom mx-auto mt-10 w-full max-w-xl">
@@ -74,7 +73,7 @@ export default function HomePage() {
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 font-mono text-xs">
           <Link
-            href="/docs/getting-started"
+            href="/docs/quickstart"
             className="border-b border-accent/50 pb-0.5 text-ink transition-colors hover:border-accent hover:text-accent"
           >
             Get started
@@ -99,20 +98,17 @@ export default function HomePage() {
       <section className="w-full max-w-5xl border-t border-line py-20 sm:py-24">
         <h2 className="font-mono text-2xl font-bold tracking-tight text-ink">The catalog</h2>
         <p className="mt-2.5 max-w-[68ch] text-sm leading-relaxed text-muted">
-          Grouped by what the capability is <em>about</em>, not by how it is invoked. Each plugin is
-          self-contained: its own manifest, its own skills, its own bundled resources, installable
-          on its own, with nothing shared between them.
+          Each plugin stands alone. Take one, and nothing else comes with it.
         </p>
 
-        <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-10 grid gap-4 sm:grid-cols-2">
           {plugins.map((plugin) => (
             <PluginCard key={plugin.name} plugin={plugin} />
           ))}
         </ul>
 
         <p className="mt-6 font-mono text-xs text-muted">
-          <span className="text-accent">*</span> marks a skill whose invocation policy is narrowed,
-          see below.
+          <span className="text-accent">*</span> runs only when you call it.
         </p>
       </section>
 
@@ -124,11 +120,9 @@ export default function HomePage() {
           Every capability is a skill
         </h2>
         <p className="mt-2.5 max-w-[68ch] text-sm leading-relaxed text-muted">
-          There is no commands directory. A capability&apos;s logic lives in one{' '}
-          <code className="font-mono text-ink">SKILL.md</code>, and the same file declares who may
-          invoke it. {uze.name} derives each vendor&apos;s surface: a slash command, a{' '}
-          <code className="font-mono text-ink">$name</code>, plain auto-discovery, all from that one
-          policy.
+          One <code className="font-mono text-ink">SKILL.md</code> says what it does and who may
+          call it. Each agent gets it in its own form: a slash command, a{' '}
+          <code className="font-mono text-ink">$name</code>, or plain discovery.
         </p>
 
         <ul className="mt-10 grid gap-x-12 gap-y-10 sm:grid-cols-3">
@@ -152,7 +146,7 @@ export default function HomePage() {
         </ul>
 
         <Link
-          href="/docs/skills"
+          href="/docs/plugins/skills"
           className="mt-10 inline-block border-b border-accent/50 pb-0.5 font-mono text-xs text-ink transition-colors hover:border-accent hover:text-accent"
         >
           Every skill, and what triggers it
@@ -172,9 +166,8 @@ export default function HomePage() {
               {uze.name}
             </h2>
             <p className="mt-2.5 max-w-[52ch] text-sm leading-relaxed text-muted">
-              {appName} is a catalog, not a runtime. {uze.name} owns a plugin&apos;s bytes and
-              delivers them to every coding agent on the machine through that agent&apos;s own
-              native mechanism, so a skill taken from here turns up in all of them.
+              {appName} is the catalog; {uze.name} installs it. One install, and the plugin is in
+              every coding agent on the machine.
             </p>
           </div>
 
@@ -209,24 +202,23 @@ export default function HomePage() {
       <section className="w-full max-w-5xl border-t border-line py-20 sm:py-24">
         <h2 className="font-mono text-2xl font-bold tracking-tight text-ink">Then take what you need</h2>
         <p className="mt-2.5 max-w-[68ch] text-sm leading-relaxed text-muted">
-          <code className="font-mono text-ink">uze plugin install</code> puts a plugin on the machine
-          for every project. Dropping the subcommand scopes it to the project you are in and writes
-          it to that project&apos;s <code className="font-mono text-ink">agents.lock</code> instead.
+          <code className="font-mono text-ink">uze &lt;plugin&gt;@ai</code> adds it to the project
+          you are in. Add <code className="font-mono text-ink">-m</code> to{' '}
+          <code className="font-mono text-ink">uze install</code> for the whole machine.
         </p>
 
-        <div className="mt-10 grid gap-3 sm:grid-cols-3">
+        <div className="mt-10 grid gap-3 sm:grid-cols-2">
           {plugins.map((plugin) => (
             <InstallCommand
               key={plugin.name}
               label={plugin.name}
-              command={`uze plugin install ${plugin.name}@${marketplace.alias}`}
+              command={installCommand.project(plugin.name)}
             />
           ))}
         </div>
 
         <p className="mt-5 font-mono text-xs text-muted">
-          No {uze.name} yet? <span className="text-ink">{uze.install}</span>. Linux, x86_64 or
-          aarch64, checksum verified.{' '}
+          No {uze.name} yet? <span className="text-ink">{uze.install}</span>. Linux and macOS.{' '}
           <a href={uze.url} className="text-ink transition-colors hover:text-accent">
             Everything else it does &#8599;
           </a>
@@ -234,13 +226,13 @@ export default function HomePage() {
 
         <div className="mt-12 flex flex-wrap items-center gap-4 font-mono text-xs">
           <Link
-            href="/docs/getting-started"
+            href="/docs/quickstart"
             className="border border-ink bg-ink px-5 py-2.5 text-paper transition-opacity hover:opacity-85"
           >
             Get started
           </Link>
           <Link
-            href="/docs/authoring"
+            href="/docs/reference/adding-a-plugin"
             className="border border-line px-5 py-2.5 text-ink transition-colors hover:bg-surface"
           >
             Add a plugin

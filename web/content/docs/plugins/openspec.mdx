@@ -1,106 +1,62 @@
 ---
 title: openspec
-description: The engineering standard. OpenSpec for the change in flight, ADRs for decisions that outlive it, Mermaid views for how the system is organized
+description: An engineering standard. OpenSpec for the change in flight, ADRs for decisions that outlive it, Mermaid for how the system is organized
+icon: FileCheck
 ---
-
-Three artifacts, each answering a different question, and none of them trying to
-answer the other two.
-
-| Artifact | Answers | Lives in |
-| --- | --- | --- |
-| **OpenSpec change** | *What are we changing right now?* | `openspec/changes/<name>/` |
-| **ADR** | *Why is the system this way?* | `docs/adr/NNN-*.md` |
-| **Architecture diagrams** | *How is the system organized?* | the project's architecture directory |
 
 <PluginHeader name="openspec" />
 
+## Three artifacts
+
+| Artifact | Answers | Lives in |
+| --- | --- | --- |
+| **OpenSpec change** | What are we changing now? | `openspec/changes/<name>/` |
+| **ADR** | Why is the system this way? | `docs/adr/NNN-*.md` |
+| **Architecture** | How is the system organized? | the directory the project declares |
+
 ## The flow
 
-A change starts as an OpenSpec change with four files: `proposal.md`,
-`specs/`, `design.md`, `tasks.md`. That is where the thinking happens and where
-it stays while the work is in flight.
+1. **Propose.** A change gets `proposal.md`, `specs/`, `design.md` and
+   `tasks.md`. Decisions that might deserve a record go under
+   `## Candidate ADRs` in the design.
+2. **Apply.** The tasks are worked. What the plan didn't decide goes in the
+   change's `decisions.md`. A change that moves a boundary updates its
+   architecture diagram in the same change.
+3. **Archive.** Only now are ADRs written, and only for candidates that pass
+   all four questions:
+   - Is reversing it expensive?
+   - Was a real alternative rejected?
+   - Does it bind code that doesn't exist yet?
+   - Is it recorded nowhere else?
 
-`design.md` carries a `## Candidate ADRs` note: decisions made along the way
-that *might* deserve a permanent record. They are not written as ADRs yet,
-because a decision that dissolves during implementation was never an
-architecture decision. It was a plan. Its counterpart during implementation is
-the change's `decisions.md` — what the task list did not decide for you, with
-the alternative you rejected and the commit that holds it.
+Most changes produce no ADR. Naming, refactors, bug fixes and version bumps
+never do.
 
-When the change is archived, the `operations.archive` guidance reads both, and
-starts from **no ADR**. A candidate earns a record only if all four are yes:
-reversing it is expensive, a real alternative was rejected, it binds code that
-does not exist yet, and it is not already recorded somewhere with an owner.
-Naming, layout, refactors, bug fixes, performance tuning, version bumps and
-test strategy never qualify, however long they were argued. Most changes
-produce no ADR at all — an ADR set that grows with every archive is a set
-nobody reads.
+## Run it unattended
 
-What does qualify is written Nygard style: Context, Decision, Consequences.
-Numbered sequentially, never renumbered, never edited to say something else. A
-reversal becomes a new ADR and the old one gets `Status: Superseded by …`.
+`auto` works the whole task list without you: verifies each item by exit code,
+commits one at a time, and writes every decision down for you to review. It
+stops for five things only:
 
-The architecture diagrams sit alongside, describing the system rather than the
-change: a handful of Mermaid views under one directory the project declares,
-one file per view and no index — the files are the list. A change that adds or
-removes a container, takes on an external dependency, or moves a relationship
-updates them *as part of that change*, never as a follow-up.
+- a destructive action outside the change
+- a step that would break a spec
+- three failed attempts at one task
+- a credential or a leaked secret
+- a finding that kills the proposal's premise
 
-The plugin owns **when** that happens, not how. Which view a change belongs in,
-which altitude to draw at, how to title it, how to link a box to the code it
-stands for — that belongs to whatever architecture skill the environment
-provides, and the diagram syntax is never written from memory: the renderer is
-the only authority on what draws. Verification is the environment's own check
-rather than a read of the file, because a diagram can be valid and still fail
-to draw, or draw with a relationship silently missing.
+## Adopting it
 
-## The skills
+`init` is **user only**: it writes `openspec/`, `docs/adr/` and the schema into
+your repository, so it runs when you call it and never on its own. Every step
+checks before writing, and running it again is safe.
+
+## Skills
 
 <PluginSkills name="openspec" />
 
-## Why `init` is user-only
+## Bundled files
 
-`init` is the one skill in this marketplace that declares
-`invoke: { model: false, user: true }`.
-
-It writes real scaffolding into a repository: runs `openspec init`, installs the
-`adr-driven` schema, rewrites `openspec/config.yaml`'s schema key, merges
-standing rules into its `context:` / `rules:` / `operations:` blocks, creates
-`docs/adr/`, and points the project at its architecture directory. It scaffolds
-no placeholder diagrams: a view nobody updates is worse than a view nobody
-drew, because it still looks current.
-
-Every step is idempotent and checks before writing. But it is still a
-deliberate, one-time act of adopting a standard, and "the user mentioned
-specs" is not consent to restructure their repository. So the model cannot
-reach for it; a person invokes it by name or it does not run.
-
-`adr` keeps the default policy, but it is the out-of-band path, not a second
-routine door: it writes a record when you ask for one, or backfills a decision
-that predates the convention. It never decides on its own that something
-deserves an ADR — that judgement belongs at archive time, against what was
-actually built, where the four questions apply.
-
-`auto` is the `apply` phase with the human out of the loop. It works the task
-list to the end, verifying each item against an exit code rather than its own
-opinion, committing one item at a time, and writing down every decision the
-plan did not make. It stops for five things and nothing else: a destructive
-action outside the change, a step that would violate a spec, three failed
-hypotheses on one item, a credential or a leaked secret, and a discovery that
-kills the proposal's premise. Finishing a task is not on that list — the next
-unchecked box is already authorized. Autonomy is bought with the record: an
-agent that decides alone and writes nothing down is destroying information.
-
-## Bundled resources
-
-The plugin ships the files `init` copies into a project. `openspec/schemas/adr-driven/`
-in an adopting project mirrors `openspec/resources/openspec/schema/` here. It
-is meant to track the plugin, so `init` overwrites it on every run and per-project
-edits do not survive. A project that needs schema changes forks the schema under
-a different name.
+What `init` copies into a project. The copy tracks the plugin, so edits to it
+are overwritten on the next run.
 
 <PluginResources name="openspec" />
-
-`decisions.md` is the one template that is not copied into a project at init:
-it belongs to a change, and `auto` creates it in that change's directory the
-first time a run has something to record.
