@@ -633,6 +633,7 @@ def cmd_run(spec: Spec, args) -> int:
     cast, attempts = spec.cast, int(args.retries)
     for attempt in range(1, attempts + 1):
         reset_sandbox(spec)
+        launched = time.time()
         screen = launch(spec, cast)
         time.sleep(float(spec.video.get("settle", 8)))
         if not screen.alive():
@@ -658,7 +659,7 @@ def cmd_run(spec: Spec, args) -> int:
             continue
         shutil.copy(cast, cast.with_suffix(".raw.cast"))   # the negative
         cast.with_suffix(".marks").write_text(
-            "".join(f"{name} {when}\n" for name, when in take.marks))
+            "".join(f"{name} {when}\n" for name, when in [("launch", launched), *take.marks]))
         say(f"take {attempt}: recorded ({cast_duration(cast):.0f}s)")
         return finish(spec)
     die(f"all {attempts} attempts failed")
@@ -731,12 +732,19 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
     header = json.loads(lines[0])
     t0 = float(header["timestamp"])
 
-    marks = {}
+    wall = {}
     if marks_file.exists():
         for line in marks_file.read_text().splitlines():
             parts = line.split()
             if len(parts) == 2:
-                marks[parts[0]] = float(parts[1]) - t0
+                wall[parts[0]] = float(parts[1])
+    # The header's timestamp is whole seconds, so measured from it every mark
+    # lands up to a second late — enough for the startup collapse to swallow
+    # the first beat. The launch is the same instant to within the time tmux
+    # takes to start asciinema, and it keeps its fraction.
+    if "launch" in wall and 0 <= wall["launch"] - t0 < 2:
+        t0 = wall["launch"]
+    marks = {name: when - t0 for name, when in wall.items()}
 
     # `driver_start`/`driver_end` bracket the whole take, not a wait: pairing
     # them would collapse the entire video into one beat.
@@ -831,7 +839,32 @@ def leaks(cast: Path, extra: list, allowed: list = ()) -> bool:
     return found
 
 
-def unresolved(family: str) -> None:
+def font_dirs(video: dict) -> list[Path]:
+    """The directories `font_dir` names, for fonts fontconfig was never told
+    about — a download kept in a cache is a font the renderer can read but
+    the system cannot match by name."""
+    declared = video.get("font_dir") or []
+    if isinstance(declared, str):
+        declared = [declared]
+    return [Path(entry).expanduser() for entry in declared]
+
+
+def families_in(dirs: list[Path]) -> set[str]:
+    if not dirs or not shutil.which("fc-scan"):
+        return set()
+    found: set[str] = set()
+    for directory in dirs:
+        for font in sorted(directory.rglob("*")):
+            if font.suffix.lower() not in (".ttf", ".otf"):
+                continue
+            listed = subprocess.run(["fc-scan", "--format", "%{family}\n", str(font)],
+                                    capture_output=True, text=True).stdout
+            found.update(name.strip() for line in listed.splitlines()
+                         for name in line.split(","))
+    return found
+
+
+def unresolved(family: str, dirs: list[Path]) -> None:
     """Say so when a declared font is not on this machine.
 
     A missing family is not an error to the renderer: it falls through its
@@ -839,10 +872,14 @@ def unresolved(family: str) -> None:
     finished video rather than as a message. Checked per name, because a
     list is only as good as its first entry that exists.
     """
+    for directory in dirs:
+        if not directory.is_dir():
+            say(f"! font_dir {str(directory)!r} does not exist")
     if not shutil.which("fc-match"):
         return
+    beside = families_in(dirs)
     for name in (part.strip() for part in family.split(",")):
-        if not name:
+        if not name or name in beside:
             continue
         got = subprocess.run(["fc-match", name], capture_output=True, text=True).stdout
         if f'"{name}"' not in got:
@@ -869,9 +906,12 @@ def render(spec: Spec, cast: Path, out: Path) -> None:
     # too, and the renderer's default list is family *names*: "JetBrains
     # Mono" does not find "JetBrainsMono Nerd Font", so every icon lands as
     # a blank cell and the video looks like the app forgot to draw them.
+    dirs = font_dirs(video)
+    for directory in dirs:
+        command += ["--font-dir", str(directory)]
     if family := video.get("font_family"):
         command += ["--text-font-family", family]
-        unresolved(family)
+        unresolved(family, dirs)
     command += [str(cast), str(out)]
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
@@ -899,14 +939,31 @@ def poster_time(spec: Spec, cast: Path) -> float | None:
     return None
 
 
+def gif_frame_at(gif: Path, at: float) -> int:
+    """The index of the frame on screen at `at` seconds, read from the GIF's
+    own delays. ffmpeg's GIF demuxer stamps each frame with the previous
+    one's start, so seeking by time lands one frame late — exactly on the
+    transition a `poster_when` match sits on."""
+    data = gif.read_bytes()
+    start, index, cursor = 0.0, 0, 0
+    while (found := data.find(b"\x21\xf9\x04", cursor)) >= 0:
+        delay = int.from_bytes(data[found + 4:found + 6], "little") / 100
+        if at < start + delay:
+            return index
+        start, index, cursor = start + delay, index + 1, found + 8
+    return max(index - 1, 0)
+
+
 def make_poster(gif: Path, poster: Path, at: float) -> None:
     if not shutil.which("ffmpeg"):
         warn("ffmpeg missing — no poster frame")
         return
     poster.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", str(at),
-                    "-i", str(gif), "-frames:v", "1", str(poster)], check=False)
-    say(f"{poster} (frame at {at:g}s)")
+    frame = gif_frame_at(gif, at)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(gif),
+                    "-vf", f"select=eq(n\\,{frame})", "-vsync", "0",
+                    "-frames:v", "1", str(poster)], check=False)
+    say(f"{poster} (frame {frame}, at {at:g}s)")
 
 
 # ── authoring aids ───────────────────────────────────────────────────────
