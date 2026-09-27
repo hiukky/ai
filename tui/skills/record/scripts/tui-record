@@ -912,6 +912,17 @@ def render(spec: Spec, cast: Path, out: Path) -> None:
     if family := video.get("font_family"):
         command += ["--text-font-family", family]
         unresolved(family, dirs)
+    # How the frames are drawn. The default backend strokes box-drawing
+    # characters as thin as the font's own metrics, where the terminal the
+    # app was written for draws them itself, heavier and joined — so a TUI
+    # made of borders and diagrams reads fainter in the video than on the
+    # screen it was designed on. Named rather than defaulted: which backend
+    # is closer depends on what the app draws, and a spec that never said
+    # keeps rendering the way it always has.
+    if renderer := video.get("renderer"):
+        command += ["--renderer", str(renderer)]
+    if line_height := video.get("line_height"):
+        command += ["--line-height", str(line_height)]
     command += [str(cast), str(out)]
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:

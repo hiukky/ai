@@ -33,6 +33,8 @@ A directory argument finds `demo.yml`, `demo.yaml` or `demo.toml` inside it.
 | `font_family` | The font the renderer draws with, by family name. An app that uses a patched font needs one here too — the default list asks for `JetBrains Mono`, which does not find `JetBrainsMono Nerd Font`, and every icon then lands as a blank cell. A name that is not installed is reported, because the renderer falls back silently |
 | `font_dir` | A directory (or a list) the renderer loads fonts from besides the system's — for a font that was downloaded but never installed, which fontconfig cannot match by name. `~` is expanded |
 | `font_size`, `idle_limit` | Passed to the renderer |
+| `renderer` | The renderer's drawing backend: `swash` (its default) or `resvg`. `resvg` strokes box-drawing characters heavier and joins them at corners, the way a terminal draws them itself — the one to pick for an app made of borders, rules or diagrams. Left out, the renderer's own default |
+| `line_height` | Row height as a multiple of the font size. The renderer's default leaves air between rows that a terminal does not, so a screen reads looser and taller than the one it was drawn for; `1.0` is the terminal's own spacing |
 | `wait_collapse` | What a `wait` beat's stretch collapses to |
 | `sidebar` | Column where the sidebar band ends, for `in: sidebar` |
 | `settle` | Seconds to let the app start before the first beat |
