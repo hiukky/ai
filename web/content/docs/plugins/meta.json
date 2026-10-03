@@ -2,5 +2,5 @@
   "title": "Plugins",
   "icon": "Puzzle",
   "defaultOpen": true,
-  "pages": ["index", "openspec", "git", "tui", "env", "skills"]
+  "pages": ["index", "openspec", "git", "tui", "env", "code", "skills"]
 }

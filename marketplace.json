@@ -62,6 +62,21 @@
         "docker",
         "vhdx"
       ]
+    },
+    {
+      "name": "code",
+      "source": "./code",
+      "description": "Restructure code without changing what it does: small verified steps, the project's own gates, and the same four lenses every time.",
+      "keywords": [
+        "refactoring",
+        "mikado",
+        "legacy-code",
+        "architecture",
+        "security",
+        "performance",
+        "code-quality",
+        "language-agnostic"
+      ]
     }
   ]
 }

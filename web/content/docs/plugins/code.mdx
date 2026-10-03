@@ -1,0 +1,78 @@
+---
+title: code
+description: Restructure code without changing what it does, in small verified steps, judged through the same four lenses every time
+icon: Hammer
+---
+
+<PluginHeader name="code" />
+
+## Two promises
+
+`refactor` changes structure and nothing else. A change that breaks either
+promise is not a refactoring, whatever its commit says:
+
+1. **Behavior is preserved**, proved by the project's gate, not by reading
+   the diff.
+2. **Every step can be undone**: one transformation, a green gate, one
+   commit.
+
+Structure and behavior never change in the same step. A bug found on the
+way is recorded and fixed in a `fix:` commit of its own.
+
+## Your project decides what green means
+
+Before planning, the skill reads the project's own rules (`AGENTS.md`,
+architecture docs, decision records) and its CI, and adopts the exact
+commands that block a merge as the gate. Your rules win over the skill's.
+
+It works in any language because it asks what **safety net** the code has,
+not what language it is:
+
+| The code has | Steps may be |
+| --- | --- |
+| strict static types | larger: the compiler finds every caller |
+| partial or optional types | medium: search where the checker is blind |
+| no static types | small: tests after every move |
+| dispatch by name (reflection, DI, templates, config keys) | smallest: search the name as text everywhere |
+
+Where nothing pins the behavior, it writes characterization tests first,
+green against the old code.
+
+## Sized before started
+
+| Size | The plan lives |
+| --- | --- |
+| local | in the session |
+| spread | a Mikado graph in the git directory, never committed |
+| aggressive | an OpenSpec change, run unattended by `openspec`'s `auto` |
+
+The Mikado method: try the goal, note what broke, revert, do the leaves
+first. The tree is green between any two steps.
+
+## Decisions it takes, and the ones it does not
+
+Easy to undo (names, extractions, moves inside a module): decided and
+recorded. Hard to undo (a persisted format, a public interface, a new
+dependency, removed behavior, a moved trust boundary): decided while
+planning, or left for you with a recommendation. It stops on four
+conditions only, and finishing a step is not one of them.
+
+## Four lenses
+
+Asked of every refactoring, once while planning and once on the final
+diff, so they never have to go into a prompt again:
+
+- **architecture**: dependency direction, boundaries, rules kept as tests
+- **security**: checks still before use, on every path; untrusted input;
+  secrets
+- **performance**: no number, no claim
+- **quality**: names, the smells worth acting on, tests that test behavior
+
+## The report
+
+Same shape every time: why, the gate and its result, what changed, what
+was decided, what waits for you, what was found and left alone.
+
+## Skills
+
+<PluginSkills name="code" />

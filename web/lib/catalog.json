@@ -228,6 +228,53 @@
       ],
       "resources": [],
       "path": "env"
+    },
+    {
+      "name": "code",
+      "description": "Restructure code without changing what it does: small verified steps, the project's own gates, and the same four lenses every time.",
+      "manifestDescription": "Working on code that already exists: restructuring it without changing what it does, in small verified steps against the project's own gates, judged through the same four lenses (architecture, security, performance, quality) every time.",
+      "keywords": [
+        "refactoring",
+        "mikado",
+        "legacy-code",
+        "architecture",
+        "security",
+        "performance",
+        "code-quality",
+        "language-agnostic"
+      ],
+      "icon": "Hammer",
+      "skills": [
+        {
+          "id": "refactor",
+          "name": "refactor",
+          "plugin": "code",
+          "description": "Change the structure of existing code without changing its behavior - from a rename across a module to a boundary moved across a codebase - in small verified steps, with every decision the plan did not make recorded for review. Use when someone asks to refactor, restructure, extract, split, untangle, decouple or migrate a module or an interface, to pay down technical debt, or says \"refatora isso\", \"reorganiza esse módulo\", \"quebra esse arquivo\", \"limpa essa parte\". Language-agnostic - the project's own gates and docs decide what green means. Not for adding or changing behavior (that goes in its own step, before or after, never in the same one), not for reviewing code without changing it, not for working an existing OpenSpec task list (that is the `openspec` plugin's `auto`), and not for committing the result (that is the `git` plugin's `commit`).",
+          "invoke": {
+            "model": true,
+            "user": true
+          },
+          "compatibility": "A git repository, any language. Uses a language server, ast-grep or comby for mechanical changes when one is present, and falls back to search and edit when none is.",
+          "references": [
+            "mechanical-change.md",
+            "mikado.md",
+            "safety-net.md"
+          ],
+          "scripts": [],
+          "path": "code/skills/refactor"
+        }
+      ],
+      "carries": [
+        "skills",
+        "resources"
+      ],
+      "resources": [
+        "lenses/architecture.md",
+        "lenses/performance.md",
+        "lenses/quality.md",
+        "lenses/security.md"
+      ],
+      "path": "code"
     }
   ]
 }
