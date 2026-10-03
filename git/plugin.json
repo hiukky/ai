@@ -1,5 +1,11 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "git",
-  "description": "Personal git workflow conventions: Conventional Commits and gitflow-named pull/merge requests."
+  "description": "Personal git workflow conventions: Conventional Commits and gitflow-named pull/merge requests.",
+  "keywords": [
+    "git",
+    "commit",
+    "conventional-commits",
+    "workflow"
+  ]
 }

@@ -1,5 +1,15 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "code",
-  "description": "Working on code that already exists: restructuring it without changing what it does, in small verified steps against the project's own gates, judged through the same four lenses (architecture, security, performance, quality) every time."
+  "description": "Working on code that already exists: restructuring it without changing what it does, in small verified steps against the project's own gates, judged through the same four lenses (architecture, security, performance, quality) every time.",
+  "keywords": [
+    "refactoring",
+    "mikado",
+    "legacy-code",
+    "architecture",
+    "security",
+    "performance",
+    "code-quality",
+    "language-agnostic"
+  ]
 }

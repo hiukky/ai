@@ -1,5 +1,15 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "openspec",
-  "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it."
+  "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
+  "keywords": [
+    "openspec",
+    "adr",
+    "architecture-decision-records",
+    "mermaid",
+    "architecture",
+    "standard",
+    "autonomous",
+    "unattended"
+  ]
 }

@@ -1,5 +1,14 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "tui",
-  "description": "Terminal UI media: recording a TUI as a demo video people will actually watch — isolated, verified, reproducible."
+  "description": "Terminal UI media: recording a TUI as a demo video people will actually watch — isolated, verified, reproducible.",
+  "keywords": [
+    "tui",
+    "asciinema",
+    "demo",
+    "screencast",
+    "gif",
+    "recording",
+    "documentation"
+  ]
 }

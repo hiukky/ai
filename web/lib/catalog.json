@@ -6,8 +6,7 @@
   "plugins": [
     {
       "name": "openspec",
-      "description": "Specs before code, ADRs only when they earn it, architecture diagrams kept current. Can work a change's task list unattended.",
-      "manifestDescription": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
+      "description": "Personal engineering standard: OpenSpec (proposal/specs/design/tasks) with unattended implementation via the `auto` skill, rare ADRs written only at archive time, and Mermaid architecture diagrams kept current as part of each change. Run the `init` skill (user-only) in a new or existing project to apply it.",
       "keywords": [
         "openspec",
         "adr",
@@ -18,6 +17,7 @@
         "autonomous",
         "unattended"
       ],
+      "category": "development",
       "icon": "FileCheck",
       "skills": [
         {
@@ -84,14 +84,14 @@
     },
     {
       "name": "git",
-      "description": "Conventional Commits made when the work is done, and pull requests named like the history they become.",
-      "manifestDescription": "Personal git workflow conventions: Conventional Commits and gitflow-named pull/merge requests.",
+      "description": "Personal git workflow conventions: Conventional Commits and gitflow-named pull/merge requests.",
       "keywords": [
         "git",
         "commit",
         "conventional-commits",
         "workflow"
       ],
+      "category": "development",
       "icon": "GitBranch",
       "skills": [
         {
@@ -133,8 +133,7 @@
     },
     {
       "name": "tui",
-      "description": "Turns a terminal UI into a demo GIF: written as a spec, recorded in a sandbox, scanned for leaks.",
-      "manifestDescription": "Terminal UI media: recording a TUI as a demo video people will actually watch — isolated, verified, reproducible.",
+      "description": "Terminal UI media: recording a TUI as a demo video people will actually watch — isolated, verified, reproducible.",
       "keywords": [
         "tui",
         "asciinema",
@@ -144,6 +143,7 @@
         "recording",
         "documentation"
       ],
+      "category": "development",
       "icon": "Clapperboard",
       "skills": [
         {
@@ -175,8 +175,7 @@
     },
     {
       "name": "env",
-      "description": "Every install goes through your dotfiles, so the machine can be rebuilt from them. Plus: find what fills the disk and free it.",
-      "manifestDescription": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it. Plus the other half of keeping a machine healthy: finding what fills its disks and giving the space back.",
+      "description": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it. Plus the other half of keeping a machine healthy: finding what fills its disks and giving the space back.",
       "keywords": [
         "dotfiles",
         "chezmoi",
@@ -190,6 +189,7 @@
         "docker",
         "vhdx"
       ],
+      "category": "development",
       "icon": "MonitorCog",
       "skills": [
         {
@@ -231,8 +231,7 @@
     },
     {
       "name": "code",
-      "description": "Restructure code without changing what it does: small verified steps, the project's own gates, and the same four lenses every time.",
-      "manifestDescription": "Working on code that already exists: restructuring it without changing what it does, in small verified steps against the project's own gates, judged through the same four lenses (architecture, security, performance, quality) every time.",
+      "description": "Working on code that already exists: restructuring it without changing what it does, in small verified steps against the project's own gates, judged through the same four lenses (architecture, security, performance, quality) every time.",
       "keywords": [
         "refactoring",
         "mikado",
@@ -243,6 +242,7 @@
         "code-quality",
         "language-agnostic"
       ],
+      "category": "development",
       "icon": "Hammer",
       "skills": [
         {

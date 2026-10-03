@@ -122,9 +122,9 @@ const catalog = {
 
     return {
       name: entry.name,
-      description: entry.description,
-      manifestDescription: manifest.description ?? entry.description,
-      keywords: entry.keywords ?? [],
+      description: manifest.description ?? '',
+      keywords: manifest.keywords ?? [],
+      category: entry.category ?? null,
       icon: readIcon(entry.name),
       skills: readSkills(entry.name, dir),
       carries: capabilitySlots

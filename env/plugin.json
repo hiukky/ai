@@ -1,5 +1,18 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "env",
-  "description": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it. Plus the other half of keeping a machine healthy: finding what fills its disks and giving the space back."
+  "description": "The machine as a build product of its dotfiles: nothing is installed or configured by hand, everything goes through the chezmoi source and is applied from it. Plus the other half of keeping a machine healthy: finding what fills its disks and giving the space back.",
+  "keywords": [
+    "dotfiles",
+    "chezmoi",
+    "environment",
+    "provisioning",
+    "wsl",
+    "machine",
+    "drift",
+    "disk-space",
+    "cleanup",
+    "docker",
+    "vhdx"
+  ]
 }

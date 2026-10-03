@@ -35,11 +35,11 @@ export type Skill = {
 
 export type Plugin = {
   name: string;
-  /** marketplace.json description, the one a person reads in `uze list` */
+  /** plugin.json description, the one a person reads in `uze list` */
   description: string;
-  /** plugin.json description, the one the manifest carries */
-  manifestDescription: string;
   keywords: string[];
+  /** marketplace.json category, the word the catalogue is browsed by */
+  category: string | null;
   /** lucide icon name, from the plugin's docs page frontmatter */
   icon: string | null;
   skills: Skill[];

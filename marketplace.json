@@ -8,75 +8,27 @@
     {
       "name": "openspec",
       "source": "./openspec",
-      "description": "Specs before code, ADRs only when they earn it, architecture diagrams kept current. Can work a change's task list unattended.",
-      "keywords": [
-        "openspec",
-        "adr",
-        "architecture-decision-records",
-        "mermaid",
-        "architecture",
-        "standard",
-        "autonomous",
-        "unattended"
-      ]
+      "category": "development"
     },
     {
       "name": "git",
       "source": "./git",
-      "description": "Conventional Commits made when the work is done, and pull requests named like the history they become.",
-      "keywords": [
-        "git",
-        "commit",
-        "conventional-commits",
-        "workflow"
-      ]
+      "category": "development"
     },
     {
       "name": "tui",
       "source": "./tui",
-      "description": "Turns a terminal UI into a demo GIF: written as a spec, recorded in a sandbox, scanned for leaks.",
-      "keywords": [
-        "tui",
-        "asciinema",
-        "demo",
-        "screencast",
-        "gif",
-        "recording",
-        "documentation"
-      ]
+      "category": "development"
     },
     {
       "name": "env",
       "source": "./env",
-      "description": "Every install goes through your dotfiles, so the machine can be rebuilt from them. Plus: find what fills the disk and free it.",
-      "keywords": [
-        "dotfiles",
-        "chezmoi",
-        "environment",
-        "provisioning",
-        "wsl",
-        "machine",
-        "drift",
-        "disk-space",
-        "cleanup",
-        "docker",
-        "vhdx"
-      ]
+      "category": "development"
     },
     {
       "name": "code",
       "source": "./code",
-      "description": "Restructure code without changing what it does: small verified steps, the project's own gates, and the same four lenses every time.",
-      "keywords": [
-        "refactoring",
-        "mikado",
-        "legacy-code",
-        "architecture",
-        "security",
-        "performance",
-        "code-quality",
-        "language-agnostic"
-      ]
+      "category": "development"
     }
   ]
 }
