@@ -40,6 +40,7 @@ No build, test, or lint commands at repo root — the root is a marketplace cata
 - Keep each plugin self-contained under `<name>/` at the repo root; don't leak plugin files into `marketplace.json`-adjacent shared space, and don't nest plugins inside each other.
 - Don't hand-edit UZE-managed regions (`<!-- uze:begin -->` / `<!-- uze:end -->`); run `uze agent context reconcile` for those.
 - For changes that touch `openspec` plugin resources, mirror upstream expectations: `openspec/schemas/adr-driven/` (in a project that adopted the standard) mirrors `openspec/resources/openspec/schema/` (in this repo) — don't hand-edit per-project copies.
+- **A script a skill ships is Python by default**, because these plugins run wherever their harness does, Windows included, and `bash`, `sed -i` or `find` there is an assumption about the reader's machine. Standard library only, `pathlib` for paths, `shutil.which` before spawning a tool (it resolves Windows' `.cmd` shims), and file writes that keep the file's own line endings. A skill calls it through the interpreter (`python3 "$SKILL_DIR/scripts/<name>"`), never by its shebang. Shell is for what is inherently bound to one platform - a script whose job is to drive tmux, or to emit PowerShell for the host - and the skill's `compatibility:` says which platforms it covers.
 - Commit messages follow Conventional Commits (see `git` plugin's `commit` skill).
 <!-- uze:begin project:worktree-policy/cb0d0039014788ce -->
 ## Concurrent work isolation
