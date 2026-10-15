@@ -16,8 +16,9 @@ silently missing, so reading the file is not verification.
 
   (When merging this block, substitute both placeholders with what this
   project actually uses - the directory it declares and the command that
-  checks it. Under UZE that is `agents.yaml`'s `artifacts: path:` and
-  `uze agent artifacts check`; another environment will differ. If the
+  checks it. Under UZE that is `agents.yaml`'s `workspace.artifacts` (a
+  directory, or a list of them) and `uze agent artifacts check`; another
+  environment will differ. If the
   project has no such check, drop that sentence rather than inventing
   one.)
 

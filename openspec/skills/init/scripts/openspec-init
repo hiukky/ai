@@ -34,6 +34,27 @@ Run from the project root. `detect` writes to stdout and changes nothing.
 USAGE
 }
 
+# The places agents.yaml declares under `workspace.artifacts`, one per line:
+# a directory, or a list of them in flow or block form. Matching any `path:`
+# in the file instead reads a local marketplace's source as the architecture.
+declared_artifacts() {
+  [ -f agents.yaml ] || return 0
+  awk '
+    function emit(v) { gsub(/^[ \t"\x27]+|[ \t"\x27]+$/, "", v); if (v != "") print v }
+    /^[^ \t#]/ { in_ws = ($0 ~ /^workspace:[ \t]*(#.*)?$/); in_list = 0; next }
+    !in_ws { next }
+    in_list && /^[ \t]*-[ \t]/ { v = $0; sub(/^[ \t]*-[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); emit(v); next }
+    in_list && /^[ \t]*(#.*)?$/ { next }
+    { in_list = 0 }
+    /^[ \t]+artifacts:/ {
+      v = $0; sub(/^[ \t]+artifacts:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); sub(/^#.*$/, "", v)
+      if (v == "") { in_list = 1; next }
+      if (v ~ /^\[/) { gsub(/[\[\]]/, "", v); n = split(v, items, ","); for (i = 1; i <= n; i++) emit(items[i]); next }
+      emit(v)
+    }
+  ' agents.yaml
+}
+
 cmd_detect() {
   local kind=existing
   # A project with no README, no package manifest and no source beyond a .git
@@ -51,15 +72,21 @@ cmd_detect() {
 
   # Where the architecture lives is declared by the project, not assumed. Read
   # the declaration if there is one; fall back to the conventional directory.
-  local arch=""
-  if [ -f agents.yaml ]; then
-    arch="$(sed -n 's/^[[:space:]]*path:[[:space:]]*//p' agents.yaml 2>/dev/null | head -1)"
+  local places arch declared=no n=0 place
+  places="$(declared_artifacts)"
+  if [ -n "$places" ]; then
+    declared=yes
+    arch="$(printf '%s\n' "$places" | head -1)"
+  else
+    places="docs/architecture"
+    arch="$places"
   fi
-  [ -n "$arch" ] || arch="docs/architecture"
   say "architecture-dir: $arch"
-  say "architecture-declared: $([ -f agents.yaml ] && grep -q 'artifacts:' agents.yaml 2>/dev/null && echo yes || echo no)"
-  local n=0
-  [ -d "$arch" ] && n="$(find "$arch" -maxdepth 3 \( -name '*.mmd' -o -name '*.mermaid' \) 2>/dev/null | wc -l | tr -d ' ')"
+  say "architecture-declared: $declared"
+  while IFS= read -r place; do
+    [ -d "$place" ] || continue
+    n=$((n + $(find "$place" -maxdepth 3 \( -name '*.mmd' -o -name '*.mermaid' \) 2>/dev/null | wc -l)))
+  done <<< "$places"
   say "architecture-diagrams: $n"
   say "harnesses: $(for d in .claude .codex .opencode .gemini .cursor; do [ -e "$d" ] && printf '%s ' "${d#.}"; done)"
 }
