@@ -9,7 +9,8 @@ description: >-
   `auto`), not for writing a single decision record (that is `adr`), and not
   for setting up agent context portability across harnesses.
 compatibility: >-
-  The `openspec` CLI on PATH (npm `@fission-ai/openspec`), bash and python3.
+  The `openspec` CLI on PATH (npm `@fission-ai/openspec`) and python3, on
+  Linux, macOS or Windows.
   Writes into the current project; run it from the project root.
 invoke:
   model: false
@@ -30,10 +31,12 @@ The copying, scaffolding and validating is one script, so it either succeeds
 or exits non-zero:
 
 ```bash
-"$SKILL_DIR/scripts/openspec-init" --help
+python3 "$SKILL_DIR/scripts/openspec-init" --help
 ```
 
-`$SKILL_DIR` is the directory this file is in. The script resolves the plugin
+`$SKILL_DIR` is the directory this file is in. Call it through the
+interpreter rather than by its shebang, so the same line works on Windows
+(where the interpreter may be named `python` or `py`). The script resolves the plugin
 from its own location, so nothing has to hunt for a plugin root.
 
 What is left below is the part a script can't decide. Safe to re-run:
@@ -42,7 +45,7 @@ everything is idempotent and checks before writing.
 ## 1. Read the project before changing it
 
 ```bash
-"$SKILL_DIR/scripts/openspec-init" detect
+python3 "$SKILL_DIR/scripts/openspec-init" detect
 ```
 
 It reports whether this is a new or existing project, what OpenSpec state
@@ -79,7 +82,7 @@ they get round to it.
 ## 3. Install the schema, the ADR home, and the architecture directory
 
 ```bash
-"$SKILL_DIR/scripts/openspec-init" all
+python3 "$SKILL_DIR/scripts/openspec-init" all
 ```
 
 That installs `openspec/schemas/adr-driven/` from the plugin, validates it,
@@ -111,7 +114,7 @@ project's config is an instruction nobody can follow.
 When the merge is done, check that the file still parses:
 
 ```bash
-"$SKILL_DIR/scripts/openspec-init" config
+python3 "$SKILL_DIR/scripts/openspec-init" config
 ```
 
 This is not ceremony. These blocks are prose, and several sentences carry a

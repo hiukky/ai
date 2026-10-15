@@ -1,171 +1,275 @@
-#!/usr/bin/env bash
-# openspec-init - the deterministic half of the `init` skill.
-#
-# Everything here is copy, scaffold and validate: it either succeeds or exits
-# non-zero. The judgement - which --tools this project needs, what its state
-# is, whether an architecture view is worth authoring, what to substitute into
-# the context block - stays in SKILL.md, where a human or a model decides it.
-set -euo pipefail
+#!/usr/bin/env python3
+"""openspec-init - the deterministic half of the `init` skill.
+
+Everything here is copy, scaffold and validate: it either succeeds or exits
+non-zero. The judgement - which --tools this project needs, what its state
+is, whether an architecture view is worth authoring, what to substitute into
+the context block - stays in SKILL.md, where a human or a model decides it.
+
+Run from the project root. Standard library only, so it runs wherever
+python3 does, Windows included.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 # This script ships inside the plugin, at <plugin>/skills/init/scripts/, so it
 # knows where the plugin is. Nothing needs to hunt for a plugin root.
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-PLUGIN_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd)"
-SCHEMA_SRC="$PLUGIN_ROOT/resources/openspec/schema"
-DOCS_SRC="$PLUGIN_ROOT/resources/docs"
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+SCHEMA_SRC = PLUGIN_ROOT / "resources" / "openspec" / "schema"
+DOCS_SRC = PLUGIN_ROOT / "resources" / "docs"
 
-die() { printf 'openspec-init: %s\n' "$*" >&2; exit 1; }
-say() { printf '%s\n' "$*"; }
+CONFIG = Path("openspec") / "config.yaml"
+SCHEMA_DEST = Path("openspec") / "schemas" / "adr-driven"
+DEFAULT_ARCH = "docs/architecture"
+MANIFESTS = (
+    "package.json", "Cargo.toml", "pyproject.toml", "go.mod",
+    "build.gradle", "pom.xml", "Gemfile", "composer.json",
+)
+HARNESS_DIRS = (".claude", ".codex", ".opencode", ".gemini", ".cursor")
 
-[ -f "$SCHEMA_SRC/schema.yaml" ] || die "no schema at $SCHEMA_SRC - wrong plugin root ($PLUGIN_ROOT)"
 
-usage() {
-  cat <<'USAGE'
-openspec-init <command>
+class Failure(Exception):
+    pass
 
-  detect    report what already exists in this project, one fact per line
-  config    check that openspec/config.yaml still parses as YAML
-  schema    install/refresh the adr-driven schema and validate it
-  adr       create docs/adr/ and its README if absent
-  arch      create the architecture directory if absent
-  all       schema + adr + arch
 
-Run from the project root. `detect` writes to stdout and changes nothing.
-USAGE
-}
+def say(line: str) -> None:
+    print(line)
 
-# The places agents.yaml declares under `workspace.artifacts`, one per line:
-# a directory, or a list of them in flow or block form. Matching any `path:`
-# in the file instead reads a local marketplace's source as the architecture.
-declared_artifacts() {
-  [ -f agents.yaml ] || return 0
-  awk '
-    function emit(v) { gsub(/^[ \t"\x27]+|[ \t"\x27]+$/, "", v); if (v != "") print v }
-    /^[^ \t#]/ { in_ws = ($0 ~ /^workspace:[ \t]*(#.*)?$/); in_list = 0; next }
-    !in_ws { next }
-    in_list && /^[ \t]*-[ \t]/ { v = $0; sub(/^[ \t]*-[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); emit(v); next }
-    in_list && /^[ \t]*(#.*)?$/ { next }
-    { in_list = 0 }
-    /^[ \t]+artifacts:/ {
-      v = $0; sub(/^[ \t]+artifacts:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); sub(/^#.*$/, "", v)
-      if (v == "") { in_list = 1; next }
-      if (v ~ /^\[/) { gsub(/[\[\]]/, "", v); n = split(v, items, ","); for (i = 1; i <= n; i++) emit(items[i]); next }
-      emit(v)
-    }
-  ' agents.yaml
-}
 
-cmd_detect() {
-  local kind=existing
-  # A project with no README, no package manifest and no source beyond a .git
-  # is one nobody has started yet - it gets a lighter touch in SKILL.md.
-  if [ -z "$(ls -A 2>/dev/null | grep -vE '^\.git$' || true)" ]; then
-    kind=new
-  elif [ ! -f README.md ] && [ ! -f README ] && \
-     ! ls package.json Cargo.toml pyproject.toml go.mod build.gradle pom.xml Gemfile composer.json >/dev/null 2>&1; then
-    kind=new
-  fi
-  say "project: $kind"
-  say "openspec: $([ -d openspec ] && echo present || echo absent)"
-  say "schema: $(sed -n 's/^schema:[[:space:]]*//p' openspec/config.yaml 2>/dev/null || echo none)"
-  say "docs/adr: $([ -d docs/adr ] && echo present || echo absent)"
+def diagrams_under(place: Path) -> int:
+    """Mermaid files at most three levels below `place`, as `find -maxdepth 3`."""
+    if not place.is_dir():
+        return 0
+    base = len(place.parts)
+    return sum(
+        1
+        for path in place.rglob("*")
+        if path.suffix in (".mmd", ".mermaid") and len(path.parts) - base <= 3
+    )
 
-  # Where the architecture lives is declared by the project, not assumed. Read
-  # the declaration if there is one; fall back to the conventional directory.
-  local places arch declared=no n=0 place
-  places="$(declared_artifacts)"
-  if [ -n "$places" ]; then
-    declared=yes
-    arch="$(printf '%s\n' "$places" | head -1)"
-  else
-    places="docs/architecture"
-    arch="$places"
-  fi
-  say "architecture-dir: $arch"
-  say "architecture-declared: $declared"
-  while IFS= read -r place; do
-    [ -d "$place" ] || continue
-    n=$((n + $(find "$place" -maxdepth 3 \( -name '*.mmd' -o -name '*.mermaid' \) 2>/dev/null | wc -l)))
-  done <<< "$places"
-  say "architecture-diagrams: $n"
-  say "harnesses: $(for d in .claude .codex .opencode .gemini .cursor; do [ -e "$d" ] && printf '%s ' "${d#.}"; done)"
-}
 
-cmd_config() {
-  # `openspec validate` does not read config.yaml: a merge that breaks the
-  # file passes validation with "No items found to validate" and the CLI is
-  # silently blind afterwards. The prose blocks merged into `context:` and
-  # `rules:` are full of sentences containing ": ", which a YAML plain scalar
-  # cannot hold - so this check is the one that actually catches a bad merge.
-  [ -f openspec/config.yaml ] || die "no openspec/config.yaml here"
-  python3 - <<'PYEOF' || die "openspec/config.yaml is not valid YAML - fix the merge before going on"
-import sys
-try:
-    import yaml
-except ImportError:
-    sys.exit(0)
-try:
-    yaml.safe_load(open("openspec/config.yaml"))
-except Exception as e:
-    print(f"openspec/config.yaml: {e}", file=sys.stderr)
-    sys.exit(1)
-PYEOF
-  say "config.yaml: parses"
-}
+def _scalar(value: str) -> str:
+    return value.strip().strip("\"'").strip()
 
-cmd_schema() {
-  [ -d openspec ] || die "no openspec/ here - run \`openspec init --tools ...\` first (SKILL.md says how to choose the tools)"
-  mkdir -p openspec/schemas/adr-driven/templates
-  # This directory mirrors the plugin and is not hand-edited per project, so
-  # refreshing it wholesale is the point, not a risk.
-  cp "$SCHEMA_SRC/schema.yaml" openspec/schemas/adr-driven/schema.yaml
-  cp "$SCHEMA_SRC/templates/"*.md openspec/schemas/adr-driven/templates/
-  if command -v openspec >/dev/null 2>&1; then
-    openspec schema validate adr-driven
-  else
-    die "openspec CLI not on PATH - the schema was copied but not validated"
-  fi
-  # Make it the project's default. Deterministic enough to belong here: the
-  # key either says adr-driven afterwards or the script failed.
-  if [ -f openspec/config.yaml ]; then
-    if grep -q '^schema:' openspec/config.yaml; then
-      sed -i.bak 's/^schema:.*/schema: adr-driven/' openspec/config.yaml && rm -f openspec/config.yaml.bak
-    else
-      printf 'schema: adr-driven\n%s' "$(cat openspec/config.yaml)" > openspec/config.yaml
-    fi
-  else
-    printf 'schema: adr-driven\n' > openspec/config.yaml
-  fi
-  grep -q '^schema: adr-driven$' openspec/config.yaml || die "could not set schema: adr-driven in openspec/config.yaml"
 
-  say "schema: installed, validated ($(ls openspec/schemas/adr-driven/templates | wc -l | tr -d ' ') templates), and set as the project default"
-}
+def _without_comment(value: str) -> str:
+    return re.sub(r"(^|\s)#.*$", "", value).strip()
 
-cmd_adr() {
-  mkdir -p docs/adr
-  if [ -f docs/adr/README.md ]; then
-    say "docs/adr/README.md: already present, left alone"
-  else
-    cp "$DOCS_SRC/adr-readme.md" docs/adr/README.md
-    say "docs/adr/README.md: created"
-  fi
-}
 
-cmd_arch() {
-  local arch="${1:-docs/architecture}"
-  mkdir -p "$arch"
-  # No index file, and no placeholder diagram: the files are the list, and a
-  # view nobody updates still looks current.
-  say "architecture: $arch ready ($(find "$arch" -maxdepth 3 \( -name '*.mmd' -o -name '*.mermaid' \) 2>/dev/null | wc -l | tr -d ' ') diagrams)"
-}
+def declared_artifacts(manifest: Path = Path("agents.yaml")) -> list[str]:
+    """The places agents.yaml declares under `workspace.artifacts`: a
+    directory, or a list of them in flow or block form.
 
-case "${1:-}" in
-  detect) cmd_detect ;;
-  config) cmd_config ;;
-  schema) cmd_schema ;;
-  adr)    cmd_adr ;;
-  arch)   shift; cmd_arch "${1:-docs/architecture}" ;;
-  all)    cmd_schema; cmd_adr; cmd_arch; cmd_config ;;
-  -h|--help|help|"") usage ;;
-  *) usage; exit 1 ;;
-esac
+    Matching any `path:` in the file instead reads a local marketplace's
+    source as the architecture. Parsed by hand because PyYAML is not in the
+    standard library and the shape is three forms of one key.
+    """
+    if not manifest.is_file():
+        return []
+    places: list[str] = []
+    in_workspace = in_list = False
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        if line and not line[0].isspace() and not line.startswith("#"):
+            in_workspace = re.fullmatch(r"workspace:\s*(#.*)?", line) is not None
+            in_list = False
+            continue
+        if not in_workspace:
+            continue
+        if in_list:
+            item = re.match(r"\s*-\s+(.*)", line)
+            if item:
+                if value := _scalar(_without_comment(item.group(1))):
+                    places.append(value)
+                continue
+            if not _without_comment(line):
+                continue
+            in_list = False
+        key = re.match(r"\s+artifacts:(.*)", line)
+        if not key:
+            continue
+        value = _without_comment(key.group(1))
+        if not value:
+            in_list = True
+        elif value.startswith("["):
+            places.extend(p for p in map(_scalar, value.strip("[]").split(",")) if p)
+        elif value := _scalar(value):
+            places.append(value)
+    return places
+
+
+def project_kind() -> str:
+    # A project with no README, no package manifest and no source beyond a
+    # .git is one nobody has started yet - it gets a lighter touch in SKILL.md.
+    entries = [p.name for p in Path(".").iterdir() if p.name != ".git"]
+    if not entries:
+        return "new"
+    if not any(Path(name).exists() for name in ("README.md", "README", *MANIFESTS)):
+        return "new"
+    return "existing"
+
+
+def configured_schema() -> str:
+    if CONFIG.is_file():
+        for line in CONFIG.read_text(encoding="utf-8").splitlines():
+            if match := re.match(r"schema:\s*(.*)", line):
+                return match.group(1).strip()
+    return "none"
+
+
+def cmd_detect(_: argparse.Namespace) -> None:
+    say(f"project: {project_kind()}")
+    say(f"openspec: {'present' if Path('openspec').is_dir() else 'absent'}")
+    say(f"schema: {configured_schema()}")
+    say(f"docs/adr: {'present' if Path('docs/adr').is_dir() else 'absent'}")
+
+    # Where the architecture lives is declared by the project, not assumed.
+    # Read the declaration if there is one; fall back to the conventional
+    # directory.
+    places = declared_artifacts()
+    say(f"architecture-dir: {places[0] if places else DEFAULT_ARCH}")
+    say(f"architecture-declared: {'yes' if places else 'no'}")
+    say(f"architecture-diagrams: {sum(diagrams_under(Path(p)) for p in places or [DEFAULT_ARCH])}")
+    found = [d[1:] for d in HARNESS_DIRS if Path(d).exists()]
+    say(f"harnesses: {' '.join(found)}")
+
+
+def cmd_config(_: argparse.Namespace) -> None:
+    # `openspec validate` does not read config.yaml: a merge that breaks the
+    # file passes validation with "No items found to validate" and the CLI is
+    # silently blind afterwards. The prose blocks merged into `context:` and
+    # `rules:` are full of sentences containing ": ", which a YAML plain
+    # scalar cannot hold - so this check is the one that actually catches a
+    # bad merge.
+    if not CONFIG.is_file():
+        raise Failure(f"no {CONFIG.as_posix()} here")
+    try:
+        import yaml
+    except ImportError:
+        say("config.yaml: not checked (PyYAML is not installed)")
+        return
+    try:
+        yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    except yaml.YAMLError as error:
+        raise Failure(
+            f"{CONFIG.as_posix()} is not valid YAML - fix the merge before going on\n{error}"
+        ) from error
+    say("config.yaml: parses")
+
+
+def set_default_schema() -> None:
+    # Deterministic enough to belong here: the key either says adr-driven
+    # afterwards or the script failed. newline="" keeps the file's own line
+    # endings, which text mode would otherwise rewrite to CRLF on Windows.
+    text = ""
+    if CONFIG.is_file():
+        with CONFIG.open(encoding="utf-8", newline="") as config:
+            text = config.read()
+    if re.search(r"^schema:", text, flags=re.MULTILINE):
+        text = re.sub(r"^schema:[^\r\n]*", "schema: adr-driven", text, count=1, flags=re.MULTILINE)
+    else:
+        text = "schema: adr-driven\n" + text
+    with CONFIG.open("w", encoding="utf-8", newline="") as config:
+        config.write(text)
+    if not re.search(r"^schema: adr-driven\r?$", text, flags=re.MULTILINE):
+        raise Failure(f"could not set schema: adr-driven in {CONFIG.as_posix()}")
+
+
+def cmd_schema(_: argparse.Namespace) -> None:
+    if not Path("openspec").is_dir():
+        raise Failure(
+            "no openspec/ here - run `openspec init --tools ...` first "
+            "(SKILL.md says how to choose the tools)"
+        )
+    templates = SCHEMA_DEST / "templates"
+    templates.mkdir(parents=True, exist_ok=True)
+    # This directory mirrors the plugin and is not hand-edited per project, so
+    # refreshing it wholesale is the point, not a risk.
+    shutil.copyfile(SCHEMA_SRC / "schema.yaml", SCHEMA_DEST / "schema.yaml")
+    for template in sorted((SCHEMA_SRC / "templates").glob("*.md")):
+        shutil.copyfile(template, templates / template.name)
+
+    # `which` resolves the npm shim on Windows (openspec.cmd), which a bare
+    # name passed to subprocess would not.
+    openspec = shutil.which("openspec")
+    if openspec is None:
+        raise Failure("openspec CLI not on PATH - the schema was copied but not validated")
+    if subprocess.run([openspec, "schema", "validate", "adr-driven"]).returncode != 0:
+        raise Failure("openspec schema validate adr-driven failed")
+
+    set_default_schema()
+    count = len(list(templates.glob("*.md")))
+    say(f"schema: installed, validated ({count} templates), and set as the project default")
+
+
+def cmd_adr(_: argparse.Namespace) -> None:
+    readme = Path("docs") / "adr" / "README.md"
+    readme.parent.mkdir(parents=True, exist_ok=True)
+    if readme.is_file():
+        say("docs/adr/README.md: already present, left alone")
+    else:
+        shutil.copyfile(DOCS_SRC / "adr-readme.md", readme)
+        say("docs/adr/README.md: created")
+
+
+def cmd_arch(args: argparse.Namespace) -> None:
+    arch = Path(args.dir)
+    arch.mkdir(parents=True, exist_ok=True)
+    # No index file, and no placeholder diagram: the files are the list, and a
+    # view nobody updates still looks current.
+    say(f"architecture: {arch.as_posix()} ready ({diagrams_under(arch)} diagrams)")
+
+
+def cmd_all(args: argparse.Namespace) -> None:
+    cmd_schema(args)
+    cmd_adr(args)
+    cmd_arch(args)
+    cmd_config(args)
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(
+        prog="openspec-init",
+        description="Run from the project root. `detect` writes to stdout and changes nothing.",
+    )
+    commands = root.add_subparsers(dest="command", metavar="<command>")
+    for name, handler, summary in (
+        ("detect", cmd_detect, "report what already exists in this project, one fact per line"),
+        ("config", cmd_config, "check that openspec/config.yaml still parses as YAML"),
+        ("schema", cmd_schema, "install/refresh the adr-driven schema and validate it"),
+        ("adr", cmd_adr, "create docs/adr/ and its README if absent"),
+        ("arch", cmd_arch, "create the architecture directory if absent"),
+        ("all", cmd_all, "schema + adr + arch"),
+    ):
+        command = commands.add_parser(name, help=summary, description=summary)
+        command.set_defaults(handler=handler)
+        if name in ("arch", "all"):
+            command.add_argument("dir", nargs="?", default=DEFAULT_ARCH)
+    return root
+
+
+def main(argv: list[str]) -> int:
+    if not (SCHEMA_SRC / "schema.yaml").is_file():
+        print(f"openspec-init: no schema at {SCHEMA_SRC} - wrong plugin root ({PLUGIN_ROOT})", file=sys.stderr)
+        return 1
+    root = parser()
+    args = root.parse_args(argv)
+    if args.command is None:
+        root.print_help()
+        return 0
+    try:
+        args.handler(args)
+    except Failure as failure:
+        print(f"openspec-init: {failure}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
