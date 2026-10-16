@@ -51,11 +51,15 @@ def die(message: str, code: int = 1):
 
 # ── the spec ─────────────────────────────────────────────────────────────
 
+PLACEHOLDERS = ("project", "root", "home", "runtime", "fixtures")
+
+
 @dataclass
 class Spec:
     path: Path
     data: dict
     root: Path                       # the project the spec belongs to
+    sources: list = field(default_factory=list)   # (how, path), in merge order
 
     @property
     def vars(self) -> dict:
@@ -95,11 +99,11 @@ class Spec:
 
     @property
     def fixtures(self) -> list:
-        return self.data.get("fixtures") or self.data.get("fixture") or []
+        return self.data.get("fixtures") or []
 
     @property
     def beats(self) -> list:
-        return self.data.get("beats") or self.data.get("beat") or []
+        return self.data.get("beats") or []
 
     @property
     def cast(self) -> Path:
@@ -170,14 +174,180 @@ def load_spec(argument: str) -> Spec:
                 break
     if not path.is_file():
         die(f"no spec at {argument}")
-    data = parse_spec(path)
+    sources: list = []
+    data = compose(path, (), set(), sources)
+    data["beats"] = expand_beats(data.get("beats") or [], data.get("macros") or {})
     root, probe = path.parent, path.parent
     while probe != probe.parent:
         if (probe / ".git").exists():
             root = probe
             break
         probe = probe.parent
-    return Spec(path=path, data=data, root=root)
+    return Spec(path=path, data=data, root=root, sources=sources)
+
+
+# ── composition ──────────────────────────────────────────────────────────
+#
+# Specs for one app share most of what they are: the sandbox, the fixtures,
+# the gestures that open a screen. Copying them is how one video gets the fix
+# and the others do not. A spec says where the rest of it lives —
+# `extends`, a fixture `include`, a `use` beat — and the interpreter puts it
+# back together before anything reads it, so every command below sees one
+# plain spec.
+
+# Lists here are one value, not a collection: an argv or a PATH appended to
+# the base's is a different command, not a longer one.
+REPLACED = ("sandbox.command", "sandbox.path")
+
+
+def replaces(where: str) -> bool:
+    return where in REPLACED or where.startswith("macros.")
+
+
+def merge(base: dict, over: dict, at: str = "") -> dict:
+    """Mappings merge by key, lists append (base first), scalars replace.
+
+    `{replace: value}` is the way out of appending: it stands for `value`
+    and discards whatever the base had there. A plain mapping rather than a
+    YAML tag, so it means the same thing in TOML."""
+    out = dict(base)
+    for key, value in over.items():
+        where = f"{at}.{key}" if at else key
+        if isinstance(value, dict) and set(value) == {"replace"}:
+            out[key] = value["replace"]
+        elif replaces(where):
+            out[key] = value
+        elif isinstance(value, dict):
+            below = out.get(key)
+            out[key] = merge(below if isinstance(below, dict) else {}, value, where)
+        elif isinstance(value, list) and isinstance(out.get(key), list):
+            out[key] = out[key] + value
+        else:
+            out[key] = value
+    return out
+
+
+def relative_to(origin: Path, reference: str) -> Path:
+    return (origin.parent / os.path.expanduser(reference)).resolve()
+
+
+def compose(path: Path, stack: tuple, seen: set, sources: list) -> dict:
+    """The spec at `path` over the bases it extends, each composed the same
+    way. A base reached twice (two bases sharing a third) is merged once, so
+    its lists are not appended twice."""
+    if path in stack:
+        die("extends goes round in a circle: "
+            + " → ".join(str(step) for step in (*stack, path)))
+    own = parse_spec(path)
+    if not isinstance(own, dict):
+        die(f"{path}: a spec is a mapping")
+    # TOML spells a list of tables in the singular; one name before merging,
+    # or a base's `beat` and a spec's `beats` would never meet.
+    for singular, plural in (("fixture", "fixtures"), ("beat", "beats")):
+        if singular in own:
+            own[plural] = own.pop(singular)
+    bases = own.pop("extends", None) or []
+    merged: dict = {}
+    for base in [bases] if isinstance(bases, str) else bases:
+        target = relative_to(path, base)
+        if target in seen:
+            continue
+        if not target.is_file():
+            die(f"{path}: extends {base}, and there is nothing at {target}")
+        merged = merge(merged, compose(target, (*stack, path), seen, sources))
+    included: list = []
+    if "fixtures" in own:
+        own["fixtures"] = include_fixtures(own["fixtures"], path, (*stack, path), included)
+    seen.add(path)
+    sources += [("extends" if stack else "spec", path), *included]
+    return merge(merged, own)
+
+
+def include_fixtures(entries: list, origin: Path, stack: tuple, sources: list) -> list:
+    """`{include: file}` stands for the fixture (or the list of them) that
+    file defines, read relative to the file that names it."""
+    out = []
+    for entry in entries:
+        if not (isinstance(entry, dict) and "include" in entry):
+            out.append(entry)
+            continue
+        if set(entry) != {"include"}:
+            die(f"{origin}: a fixture include takes nothing but `include`")
+        target = relative_to(origin, entry["include"])
+        if target in stack:
+            die("fixture includes go round in a circle: "
+                + " → ".join(str(step) for step in (*stack, target)))
+        if not target.is_file():
+            die(f"{origin}: includes {entry['include']}, and there is nothing at {target}")
+        loaded = parse_spec(target)
+        if isinstance(loaded, dict):
+            loaded = ([loaded] if "name" in loaded
+                      else loaded.get("fixtures") or loaded.get("fixture"))
+        if not isinstance(loaded, list):
+            die(f"{target}: holds no fixture (a mapping with a `name`, or a list of them)")
+        sources.append(("include", target))
+        out += include_fixtures(loaded, target, (*stack, target), sources)
+    return out
+
+
+PARAM = re.compile(r"\{([a-z_]+)\}")
+
+
+def substitute(value, params: dict):
+    """Only the parameters given are swapped, so `{home}` and friends pass
+    through to be resolved later. A string that is one parameter and nothing
+    else takes its value as is — `offset: "{nudge}"` stays a number."""
+    if isinstance(value, str):
+        if (whole := PARAM.fullmatch(value)) and whole.group(1) in params:
+            return params[whole.group(1)]
+        return PARAM.sub(lambda match: str(params[match.group(1)])
+                         if match.group(1) in params else match.group(0), value)
+    if isinstance(value, list):
+        return [substitute(item, params) for item in value]
+    if isinstance(value, dict):
+        return {key: substitute(item, params) for key, item in value.items()}
+    return value
+
+
+def unfilled(value) -> set:
+    if isinstance(value, str):
+        return set(PARAM.findall(value)) - set(PLACEHOLDERS)
+    if isinstance(value, list):
+        return set().union(*map(unfilled, value)) if value else set()
+    if isinstance(value, dict):
+        return unfilled(list(value.values()))
+    return set()
+
+
+def expand_beats(beats: list, macros: dict, trail: tuple = ()) -> list:
+    """Each `use` beat replaced by the macro's beats, parameters filled in —
+    before anything validates or performs them, so a lost beat reports the
+    `say` line of the gesture that missed, not of the macro."""
+    out = []
+    for beat in beats:
+        if not (isinstance(beat, dict) and "use" in beat):
+            out.append(beat)
+            continue
+        name, params = beat["use"], beat.get("with") or {}
+        where = " → ".join((*trail, name))
+        if extra := set(beat) - {"use", "with"}:
+            die(f"beat `use: {where}` takes only `with`, not {', '.join(sorted(extra))}")
+        if name in trail:
+            die(f"macros go round in a circle: {where}")
+        if name not in macros:
+            die(f"beat `use: {where}`: no such macro "
+                f"(defined: {', '.join(sorted(macros)) or 'none'})")
+        if clash := set(params) & set(PLACEHOLDERS):
+            die(f"beat `use: {where}`: {', '.join(sorted(clash))} is a spec placeholder, "
+                "not a parameter — name it something else")
+        body = macros[name]
+        body = substitute([body] if isinstance(body, dict) else body, params)
+        if missing := unfilled(body):
+            die(f"beat `use: {where}`: the macro needs "
+                + ", ".join(f"{{{param}}}" for param in sorted(missing))
+                + " and `with` does not give it")
+        out += expand_beats(body, macros, (*trail, name))
+    return out
 
 
 def pick(hits: list, occurrence) -> tuple:
@@ -1060,10 +1230,18 @@ def cmd_validate(spec: Spec, args) -> int:
                 warn(f"beat {index} ({label}): no `expect` — a miss here would be silent")
         if action == "wait" and "until" not in beat:
             problems.append(f"beat {index} ({label}): wait has no `until`")
+    names = [fixture.get("name") for fixture in spec.fixtures]
+    for name in sorted({name for name in names if names.count(name) > 1}):
+        problems.append(f"fixture {name!r} is defined more than once — "
+                        "two definitions would rebuild one repository")
     fixtures = Path(spec.vars["fixtures"])
     for fixture in spec.fixtures:
         if not (fixtures / fixture["name"]).exists():
             warn(f"fixture {fixture['name']} is not built — run: tui-record seed {spec.path}")
+    if len(spec.sources) > 1:
+        say(f"composed from {len(spec.sources)} files, in merge order:")
+        for how, path in spec.sources:
+            print(f"    {how:8} {path}")
     for problem in problems:
         print(f"  ✕ {problem}")
     if problems:

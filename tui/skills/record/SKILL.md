@@ -193,12 +193,28 @@ it a one-time cost.
 | The video is right but far too long | Latency was not wrapped in `wait` beats. |
 | Flaky only at startup | Let the retries absorb it; check whether the app kills its own terminal (a stale pid file plus PID reuse is one real cause). |
 
+## Share what the specs share
+
+The second video of the same app repeats most of the first: the sandbox, the
+fixtures, the gestures that open a screen. Copying them is how one video gets
+the fix and the others do not. Put the shared part where every spec can name
+it: a base the specs `extends` for the sandbox, a fixture file they
+`include`, a macro they `use` for a gesture sequence that recurs. What stays
+in a spec is what makes that video this one.
+
+Two things to know before reaching for them. Fixtures are keyed by name on
+disk, so two specs naming one fixture share one repository — define it once,
+by `include`, never twice with "change this here" comments. And lists
+append over a base, so a spec adds a `provision` step or a `link` without
+restating the base's; `{replace: ...}` is the way out when it must not.
+`references/spec.md` has the merge rules.
+
 ## Leave it reproducible
 
 What the next person needs is not the cast — it is everything that produced
 it, in the project it demos. That is the whole point of the spec: `.demo/`
-holds the spec and the output, and nothing else. No scripts to read, no
-parameters that live in someone's history.
+holds the specs, what they share, and the output, and nothing else. No
+scripts to read, no parameters that live in someone's history.
 
 Three properties keep it that way:
 

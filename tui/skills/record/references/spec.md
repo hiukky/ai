@@ -82,6 +82,23 @@ Dates are relative and always in the past: "in the future" in a timeline is
 a tell. The HEAD of each fixture is remembered, and `reset` rewinds to it
 before every attempt.
 
+Both the repository (`{fixtures}/<name>`) and its remembered HEAD
+(`{root}/base-<name>.sha`) are keyed by the fixture's **name**, not by the
+spec that built it. Two specs sharing a sandbox and naming the same fixture
+share one repository: whichever seeded last rebuilt it, and wrote the HEAD
+that both rewind to. That is only right when both define it identically,
+which is what `include` is for:
+
+```yaml
+fixtures:
+  - include: ../_shared/demo-api.yml     # relative to this file
+  - name: scratch                        # beside a fixture of its own
+    commits: [...]
+```
+
+The included file holds one fixture (a mapping with a `name`) or a list of
+them. A name defined twice in one composed spec fails `validate`.
+
 ## `beats`
 
 One gesture each, in the order the video shows them. `say` is the line that
@@ -123,6 +140,62 @@ beats:
   - say: and out
     end: C-q
 ```
+
+## Composing specs
+
+Specs for one app share most of what they are. Three keys put the shared
+part in one place; the interpreter composes before anything else reads the
+spec, so `validate`, `beats`, `run` and the failure messages all see the
+result.
+
+`extends: <path>` (or a list) at the top level: each base is composed the
+same way, recursively, then this file is merged over it. A base reached
+twice through two others is merged once; a cycle is an error naming the
+chain. Paths are relative to the file that names them.
+
+| Value in the spec | Over the base's |
+|---|---|
+| mapping | merged key by key |
+| list | appended, base first |
+| scalar | replaces it |
+| `{replace: value}` | `value`, and the base's is discarded |
+
+Two lists replace rather than append, because each is one value:
+`sandbox.command` (an argv) and `sandbox.path` (an order). So does a macro
+redefined under the same name. `{replace: ...}` is a plain mapping, not a
+YAML tag, so it reads the same in TOML; it works on mappings too
+(`env: {replace: {TZ: UTC}}`). Placeholders resolve after the merge, against
+the spec being run: `{project}` in a base is the project of the spec that
+extends it.
+
+`macros:` maps a name to a list of beats; a beat `use: <name>` with
+`with: {param: value}` stands for them, expanded inline before validation:
+
+```yaml
+macros:
+  launch:
+    - say: a new agent, on {harness}
+      click: New
+      in: sidebar
+      expect: Harness
+    - say: "{harness} is up"
+      click: "{harness}"
+      expect: "{ready}"
+      expect_in: pane
+beats:
+  - use: launch
+    with: {harness: claude, ready: "Welcome"}
+```
+
+Parameters use the same braces as placeholders and are substituted first,
+only for the names `with` gives; a parameter may not be named after a
+placeholder (`project`, `root`, `home`, `runtime`, `fixtures`), so `{home}`
+in a macro always means the sandbox home. A brace name left unfilled is an
+error, and a value that is a whole string of one parameter keeps its type
+(`offset: "{nudge}"` stays a number). A `use` beat takes nothing but
+`with`; macros may use other macros, and may live in a base.
+
+`validate` lists every file it composed, in merge order.
 
 ## Writing one
 
