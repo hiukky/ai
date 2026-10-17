@@ -1,4 +1,4 @@
 # Tools the quality gate runs, pinned so lefthook and CI agree. Nothing a
 # skill imports: the scripts themselves are standard library only.
-ruff==0.16.4
+ruff==0.17.0
 mypy==2.4.0
