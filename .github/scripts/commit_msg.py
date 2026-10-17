@@ -2,8 +2,9 @@
 """Check commit subjects against Conventional Commits (the `git` plugin's
 `commit` skill is the standard; this only refuses what is plainly not it).
 
-    commit_msg.py <file>           a message file (lefthook's commit-msg hook)
-    commit_msg.py --range A..B     every commit in a range (CI, on a pull request)
+    commit_msg.py <file>           a message file: lefthook's commit-msg hook, and
+                                   CI's check of a PR title (the squash subject)
+    commit_msg.py --range A..B     every commit in a range
 """
 
 from __future__ import annotations

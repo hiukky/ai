@@ -111,16 +111,3 @@ jobs:
           git diff --exit-code -- lib/catalog.json
       - run: bun run types:check
       - run: bun run build
-
-  commits:
-    name: Conventional Commits
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - run: >-
-          python3 .github/scripts/commit_msg.py
-          --range "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"

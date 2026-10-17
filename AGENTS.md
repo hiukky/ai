@@ -33,7 +33,7 @@ Deliberately *not* split into their own plugins yet - the current inventory does
 No build at repo root — the root is a marketplace catalog, not a runnable app. What it does have is a quality gate, run locally by `lefthook.yml` (`lefthook install` once per clone; needs `uv`, and `bun` for the site) and in full by `.github/workflows/ci.yml` on every push and PR:
 - the skill scripts: `ruff format --check`, `ruff check` (config in `ruff.toml`, Python 3.11 floor), and mypy through `python .github/scripts/typecheck.py` — one file per run, since an extensionless script is `__main__` to mypy. Tool versions are pinned in `requirements-dev.txt`; run any of them as `uv run --no-project --with-requirements requirements-dev.txt -- <tool>`. CI also starts every script with `--help` on Linux, macOS and Windows.
 - the catalog: `uze agent market check .` and `uze agent plugin check` per plugin, plus `web/lib/catalog.json` must match a fresh `bun run catalog`.
-- commit subjects: Conventional Commits, via `.github/scripts/commit_msg.py` (commit-msg hook, and over a PR's range in CI).
+- commit subjects: Conventional Commits, via `.github/scripts/commit_msg.py` — the commit-msg hook locally, and `.github/workflows/pr-title.yml` on a PR. PRs merge by **squash only**, titled by the PR and described by its body (repository setting, as in uze), so the PR title is the commit `main` gets and is what has to be right.
 
 Validate marketplace/plugin shape with UZE tooling before pushing (`uze agent plugin check <name>`, `uze agent market check .`); `uze market link ai <checkout>` makes installs read a working tree while iterating.
 

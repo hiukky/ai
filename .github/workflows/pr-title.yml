@@ -1,0 +1,26 @@
+# PRs land by squash, titled by the PR (repository setting), so the title is
+# the one subject that reaches main; the branch's own commits do not. Its own
+# workflow so that retitling a PR reruns this and not the whole gate.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  conventional:
+    name: PR title is a Conventional Commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s\n' "$TITLE" > "$RUNNER_TEMP/title"
+          python3 .github/scripts/commit_msg.py "$RUNNER_TEMP/title"
