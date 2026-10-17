@@ -151,6 +151,20 @@
   display: none;
 }
 
+/*
+  Shiki's dual themes emit each token's weight and style as variables and
+  leave applying them to the page; Fumadocs applies only the colours. The
+  command a line runs is bold in lib/code-theme.ts, so this is what shows it.
+*/
+.shiki span {
+  font-weight: var(--shiki-light-font-weight, inherit);
+  font-style: var(--shiki-light-font-style, inherit);
+}
+.dark .shiki span {
+  font-weight: var(--shiki-dark-font-weight, inherit);
+  font-style: var(--shiki-dark-font-style, inherit);
+}
+
 /* A sidebar folder clips its children (it animates its height), so a focus
    ring drawn outside a link is cut off. Draw it inside instead, and only for
    keyboard focus. */
