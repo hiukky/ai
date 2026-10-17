@@ -30,7 +30,12 @@ Current plugins:
 Deliberately *not* split into their own plugins yet - the current inventory doesn't need it and premature separation is easy to regret: an `architecture`/`specification` split of `openspec` (OpenSpec, ADR and the architecture diagrams are one coupled workflow today; split only when one needs to evolve independently of the other), a standalone `project` plugin (there's only one bootstrap entry point, the `init` skill; split out only if a second, non-OpenSpec bootstrap concern shows up), and an `adapters/` layer for per-harness translation (UZE itself already detects/provisions claude-code/codex/opencode/gemini - confirm it doesn't already cover this before duplicating it here).
 
 ## Build / Test / Lint
-No build, test, or lint commands at repo root — the root is a marketplace catalog, not a runnable app. Validate marketplace/plugin shape with UZE tooling before pushing (`uze agent plugin check <name>`, `uze agent market check .`); `uze market link ai <checkout>` makes installs read a working tree while iterating.
+No build at repo root — the root is a marketplace catalog, not a runnable app. What it does have is a quality gate, run locally by `lefthook.yml` (`lefthook install` once per clone; needs `uv`, and `bun` for the site) and in full by `.github/workflows/ci.yml` on every push and PR:
+- the skill scripts: `ruff format --check`, `ruff check` (config in `ruff.toml`, Python 3.11 floor), and mypy through `python .github/scripts/typecheck.py` — one file per run, since an extensionless script is `__main__` to mypy. Tool versions are pinned in `requirements-dev.txt`; run any of them as `uv run --no-project --with-requirements requirements-dev.txt -- <tool>`. CI also starts every script with `--help` on Linux, macOS and Windows.
+- the catalog: `uze agent market check .` and `uze agent plugin check` per plugin, plus `web/lib/catalog.json` must match a fresh `bun run catalog`.
+- commit subjects: Conventional Commits, via `.github/scripts/commit_msg.py` (commit-msg hook, and over a PR's range in CI).
+
+Validate marketplace/plugin shape with UZE tooling before pushing (`uze agent plugin check <name>`, `uze agent market check .`); `uze market link ai <checkout>` makes installs read a working tree while iterating.
 
 `web/` is the one runnable thing here: `bun install`, then `bun run dev` / `bun run build` / `bun run types:check` from inside it. Its catalog is generated from this repository at build time (`bun run catalog` → `web/lib/catalog.json`), so the site is built from a checkout, never from a copy of `web/` alone.
 

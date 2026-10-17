@@ -1,0 +1,63 @@
+# Local half of the quality gate; .github/workflows/ci.yml is the other half
+# and runs the same checks, so a hook that is skipped still gets caught.
+#
+#   lefthook install      once per clone
+#
+# The Python tools come from requirements-dev.txt through uv, so the only
+# thing a contributor installs is uv itself. The web checks need bun.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: ruff format
+      glob:
+        - "*.py"
+        - "*/skills/*/scripts/*"
+      exclude:
+        - "**/__pycache__/**"
+      run: uv run --no-project --quiet --with-requirements requirements-dev.txt -- ruff format {staged_files}
+      stage_fixed: true
+
+    - name: ruff check
+      glob:
+        - "*.py"
+        - "*/skills/*/scripts/*"
+      exclude:
+        - "**/__pycache__/**"
+      run: uv run --no-project --quiet --with-requirements requirements-dev.txt -- ruff check --fix {staged_files}
+      stage_fixed: true
+
+    - name: mypy
+      glob:
+        - "*.py"
+        - "*/skills/*/scripts/*"
+      exclude:
+        - "**/__pycache__/**"
+      run: uv run --no-project --quiet --with-requirements requirements-dev.txt -- python .github/scripts/typecheck.py {staged_files}
+
+    # The docs site's catalog is generated from the plugins: a change to a
+    # manifest or a SKILL.md that is committed without the regenerated
+    # catalog leaves the site describing the old one.
+    - name: catalog
+      glob:
+        - "marketplace.json"
+        - "*/plugin.json"
+        - "*/skills/*/SKILL.md"
+        - "web/content/docs/plugins/*.mdx"
+      run: cd web && bun run catalog && git add lib/catalog.json
+
+pre-push:
+  jobs:
+    - name: web types
+      glob: "web/**/*"
+      run: cd web && bun run types:check
+
+    # CI always runs this; locally it needs uze, which a contributor who only
+    # edits the site may not have.
+    - name: marketplace
+      run: if command -v uze > /dev/null; then uze agent market check .; else echo "uze not found, skipped (CI checks the marketplace)"; fi
+
+commit-msg:
+  jobs:
+    - name: conventional commits
+      run: python3 .github/scripts/commit_msg.py {1}
