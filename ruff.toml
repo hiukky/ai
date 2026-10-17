@@ -1,0 +1,38 @@
+# Lint and format for the Python a skill ships (see AGENTS.md: standard
+# library only, run through `python3 "$SKILL_DIR/scripts/<name>"`).
+#
+# Those scripts carry no `.py` extension, so they are named here; a file a
+# later skill adds as `<name>.py` is picked up too. Spelled out rather than
+# extended: ruff's default include also reaches into Markdown, and a
+# SKILL.md's code samples are prose, not code to reformat.
+include = ["*.py", "*/skills/*/scripts/[!_]*"]
+extend-exclude = ["web"]
+
+# The floor is the newest stdlib module a script imports at top level:
+# `tomllib`, 3.11. Keep this in step with the CI matrix.
+target-version = "py311"
+line-length = 100
+
+[format]
+quote-style = "double"
+
+[lint]
+select = [
+  "E",   # pycodestyle
+  "W",
+  "F",   # pyflakes
+  "I",   # import order
+  "B",   # bugbear
+  "UP",  # pyupgrade, against target-version
+  "SIM",
+  "RUF",
+  "PLE", # pylint errors
+]
+ignore = [
+  # A script that prints its own CLI output is not a library: an assert, a
+  # long message string or a `→` in a docstring is deliberate.
+  "E501",    # the formatter owns line length; what it cannot wrap is prose
+  "RUF001",  # ambiguous unicode in strings (→, ≈, ▸ are output glyphs)
+  "RUF002",  # ... in docstrings
+  "RUF003",  # ... in comments
+]

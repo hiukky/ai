@@ -59,8 +59,8 @@ PLACEHOLDERS = ("project", "root", "home", "runtime", "fixtures")
 class Spec:
     path: Path
     data: dict
-    root: Path                       # the project the spec belongs to
-    sources: list = field(default_factory=list)   # (how, path), in merge order
+    root: Path  # the project the spec belongs to
+    sources: list = field(default_factory=list)  # (how, path), in merge order
 
     @property
     def vars(self) -> dict:
@@ -82,8 +82,8 @@ class Spec:
             # take `fn main() {}` for a placeholder and fail.
             def swap(match):
                 return self.vars.get(match.group(1), match.group(0))
-            return os.path.expanduser(
-                re.sub(r"\{([a-z_]+)\}", swap, value))
+
+            return os.path.expanduser(re.sub(r"\{([a-z_]+)\}", swap, value))
         if isinstance(value, list):
             return [self.resolve(item) for item in value]
         if isinstance(value, dict):
@@ -126,9 +126,18 @@ class Spec:
     def env(self) -> dict:
         """Built, never inherited: an inherited variable is how a recording
         ends up with somebody's name in it."""
-        path = self.resolve(self.sandbox.get("path", [
-            "{home}/.local/bin", "{home}/bin", "/usr/local/bin", "/usr/bin", "/bin",
-        ]))
+        path = self.resolve(
+            self.sandbox.get(
+                "path",
+                [
+                    "{home}/.local/bin",
+                    "{home}/bin",
+                    "/usr/local/bin",
+                    "/usr/bin",
+                    "/bin",
+                ],
+            )
+        )
         env = {
             "HOME": self.vars["home"],
             "XDG_RUNTIME_DIR": self.vars["runtime"],
@@ -157,8 +166,10 @@ def parse_spec(path: Path) -> dict:
         try:
             import yaml
         except ImportError:
-            die("this spec is YAML and PyYAML is not installed "
-                "(pip install pyyaml, or write the spec as .toml)")
+            die(
+                "this spec is YAML and PyYAML is not installed "
+                "(pip install pyyaml, or write the spec as .toml)"
+            )
         try:
             return yaml.safe_load(text) or {}
         except yaml.YAMLError as error:
@@ -243,8 +254,7 @@ def compose(path: Path, stack: tuple, seen: set, sources: list) -> dict:
     way. A base reached twice (two bases sharing a third) is merged once, so
     its lists are not appended twice."""
     if path in stack:
-        die("extends goes round in a circle: "
-            + " → ".join(str(step) for step in (*stack, path)))
+        die("extends goes round in a circle: " + " → ".join(str(step) for step in (*stack, path)))
     own = parse_spec(path)
     if not isinstance(own, dict):
         die(f"{path}: a spec is a mapping")
@@ -282,14 +292,17 @@ def include_fixtures(entries: list, origin: Path, stack: tuple, sources: list) -
             die(f"{origin}: a fixture include takes nothing but `include`")
         target = relative_to(origin, entry["include"])
         if target in stack:
-            die("fixture includes go round in a circle: "
-                + " → ".join(str(step) for step in (*stack, target)))
+            die(
+                "fixture includes go round in a circle: "
+                + " → ".join(str(step) for step in (*stack, target))
+            )
         if not target.is_file():
             die(f"{origin}: includes {entry['include']}, and there is nothing at {target}")
         loaded: object = parse_spec(target)
         if isinstance(loaded, dict):
-            loaded = ([loaded] if "name" in loaded
-                      else loaded.get("fixtures") or loaded.get("fixture"))
+            loaded = (
+                [loaded] if "name" in loaded else loaded.get("fixtures") or loaded.get("fixture")
+            )
         if not isinstance(loaded, list):
             die(f"{target}: holds no fixture (a mapping with a `name`, or a list of them)")
         sources.append(("include", target))
@@ -307,8 +320,12 @@ def substitute(value, params: dict):
     if isinstance(value, str):
         if (whole := PARAM.fullmatch(value)) and whole.group(1) in params:
             return params[whole.group(1)]
-        return PARAM.sub(lambda match: str(params[match.group(1)])
-                         if match.group(1) in params else match.group(0), value)
+        return PARAM.sub(
+            lambda match: (
+                str(params[match.group(1)]) if match.group(1) in params else match.group(0)
+            ),
+            value,
+        )
     if isinstance(value, list):
         return [substitute(item, params) for item in value]
     if isinstance(value, dict):
@@ -342,17 +359,23 @@ def expand_beats(beats: list, macros: dict, trail: tuple = ()) -> list:
         if name in trail:
             die(f"macros go round in a circle: {where}")
         if name not in macros:
-            die(f"beat `use: {where}`: no such macro "
-                f"(defined: {', '.join(sorted(macros)) or 'none'})")
+            die(
+                f"beat `use: {where}`: no such macro "
+                f"(defined: {', '.join(sorted(macros)) or 'none'})"
+            )
         if clash := set(params) & set(PLACEHOLDERS):
-            die(f"beat `use: {where}`: {', '.join(sorted(clash))} is a spec placeholder, "
-                "not a parameter — name it something else")
+            die(
+                f"beat `use: {where}`: {', '.join(sorted(clash))} is a spec placeholder, "
+                "not a parameter — name it something else"
+            )
         body = macros[name]
         body = substitute([body] if isinstance(body, dict) else body, params)
         if missing := unfilled(body):
-            die(f"beat `use: {where}`: the macro needs "
+            die(
+                f"beat `use: {where}`: the macro needs "
                 + ", ".join(f"{{{param}}}" for param in sorted(missing))
-                + " and `with` does not give it")
+                + " and `with` does not give it"
+            )
         out += expand_beats(body, macros, (*trail, name))
     return out
 
@@ -374,6 +397,7 @@ def pick(hits: list, occurrence) -> tuple:
 
 # ── the terminal under the recording ─────────────────────────────────────
 
+
 @dataclass
 class Screen:
     """One tmux session holding the recorded pty, and the questions a beat
@@ -384,16 +408,22 @@ class Screen:
     sidebar: int = 31
 
     def pane(self) -> str:
-        return subprocess.run(["tmux", "capture-pane", "-t", self.session, "-p"],
-                              capture_output=True, text=True).stdout
+        return subprocess.run(
+            ["tmux", "capture-pane", "-t", self.session, "-p"], capture_output=True, text=True
+        ).stdout
 
     def alive(self) -> bool:
-        return subprocess.run(["tmux", "has-session", "-t", self.session],
-                              capture_output=True).returncode == 0
+        return (
+            subprocess.run(
+                ["tmux", "has-session", "-t", self.session], capture_output=True
+            ).returncode
+            == 0
+        )
 
     def band(self, where: str) -> tuple[int, int]:
-        return {"sidebar": (1, self.sidebar),
-                "pane": (self.sidebar + 1, 9999)}.get(where, (1, 9999))
+        return {"sidebar": (1, self.sidebar), "pane": (self.sidebar + 1, 9999)}.get(
+            where, (1, 9999)
+        )
 
     def find(self, text: str, where: str = "screen", occurrence="first"):
         """(row, col), 1-based; (0, 0) when absent.
@@ -427,20 +457,20 @@ class Screen:
         rows = self.pane().splitlines()
         if where == "strip":
             rows = rows[:1]
-        hits = [(row, col)
-                for row, line in enumerate(rows, 1)
-                for col, char in enumerate(line[low - 1:high], low)
-                if char in glyphs]
+        hits = [
+            (row, col)
+            for row, line in enumerate(rows, 1)
+            for col, char in enumerate(line[low - 1 : high], low)
+            if char in glyphs
+        ]
         return pick(hits, occurrence)
 
     def shows(self, pattern: str, where: str = "screen") -> bool:
-        haystack = ("".join(self.pane().splitlines()[:1]) if where == "strip"
-                    else self.pane())
+        haystack = "".join(self.pane().splitlines()[:1]) if where == "strip" else self.pane()
         return re.search(pattern, haystack) is not None
 
     def send(self, *args: str) -> None:
-        subprocess.run(["tmux", "send-keys", "-t", self.session, *args],
-                       capture_output=True)
+        subprocess.run(["tmux", "send-keys", "-t", self.session, *args], capture_output=True)
 
     def key(self, name: str) -> None:
         self.send(name)
@@ -461,11 +491,12 @@ class Screen:
             self.literal(char)
             delay = random.uniform(low, high)
             if char == " " and random.random() < 0.15:
-                delay = 0.18          # a person pauses; a machine does not
+                delay = 0.18  # a person pauses; a machine does not
             time.sleep(delay)
 
 
 # ── performing the beats ─────────────────────────────────────────────────
+
 
 class BeatFailure(Exception):
     """A gesture that did not happen. The take is spoiled: the next beat would
@@ -500,8 +531,12 @@ class Take:
             raise BeatFailure(f"{label}: unknown action {action!r}")
         handler(beat, label)
         if expect := beat.get("expect"):
-            self._await(expect, beat.get("expect_in", "screen"),
-                        float(beat.get("expect_timeout", 12)), label)
+            self._await(
+                expect,
+                beat.get("expect_in", "screen"),
+                float(beat.get("expect_timeout", 12)),
+                label,
+            )
         if (refuse := beat.get("refuse")) and self.screen.shows(refuse):
             raise BeatFailure(f"{label}: screen shows what it must not ({refuse!r})")
         time.sleep(float(beat.get("pause", 0.8)))
@@ -616,6 +651,7 @@ class Take:
 
 # ── sandbox ──────────────────────────────────────────────────────────────
 
+
 def cmd_seed(spec: Spec, args) -> int:
     """Everything a recording needs that is not the app: a HOME of its own,
     its tools, its fixtures. Idempotent — a wiped /tmp is a re-run, not an
@@ -636,8 +672,8 @@ def cmd_seed(spec: Spec, args) -> int:
 
     for name in spec.sandbox.get("binaries", []):
         real = shutil.which(name)
-        if real and "/.uze/shims/" in real:      # never a shim: it would point
-            real = None                          # the sandbox back at the real home
+        if real and "/.uze/shims/" in real:  # never a shim: it would point
+            real = None  # the sandbox back at the real home
         if not real:
             candidate = Path.home() / ".local/bin" / name
             real = str(candidate) if candidate.exists() else None
@@ -672,8 +708,9 @@ def cmd_seed(spec: Spec, args) -> int:
     for command in spec.sandbox.get("provision", []):
         resolved = spec.resolve(command)
         say(f"provision: {resolved}")
-        result = subprocess.run(resolved, shell=True, env=spec.env(),
-                                capture_output=True, text=True)
+        result = subprocess.run(
+            resolved, shell=True, env=spec.env(), capture_output=True, text=True
+        )
         if result.returncode != 0:
             tail = (result.stderr or result.stdout).strip().splitlines()
             warn(tail[-1] if tail else "provision step failed")
@@ -706,29 +743,39 @@ def seed_fixtures(spec: Spec) -> None:
     base = Path(spec.vars["fixtures"])
     author = spec.sandbox.get("author", "Ada Lovelace")
     email = spec.sandbox.get("author_email", "ada@demo.dev")
-    env = spec.env() | {"GIT_AUTHOR_NAME": author, "GIT_AUTHOR_EMAIL": email,
-                        "GIT_COMMITTER_NAME": author, "GIT_COMMITTER_EMAIL": email}
+    env = spec.env() | {
+        "GIT_AUTHOR_NAME": author,
+        "GIT_AUTHOR_EMAIL": email,
+        "GIT_COMMITTER_NAME": author,
+        "GIT_COMMITTER_EMAIL": email,
+    }
     for fixture in spec.fixtures:
         repo = base / fixture["name"]
         say(f"fixture {repo}")
         shutil.rmtree(repo, ignore_errors=True)
         repo.mkdir(parents=True)
         subprocess.run(["git", "init", "-q", "-b", "main", "."], cwd=repo, env=env)
-        for commit in (fixture.get("commits") or fixture.get("commit") or []):
+        for commit in fixture.get("commits") or fixture.get("commit") or []:
             for name, text in commit.get("files", {}).items():
                 path = repo / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(spec.resolve(text).rstrip("\n") + "\n")
             # Backdated, and always in the past: "in the future" in a
             # timeline is a tell.
-            when = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(
-                time.time() - float(commit.get("days_ago", 1)) * 86400))
+            when = time.strftime(
+                "%Y-%m-%dT%H:%M:%S",
+                time.localtime(time.time() - float(commit.get("days_ago", 1)) * 86400),
+            )
             subprocess.run(["git", "add", "-A"], cwd=repo, env=env, capture_output=True)
-            subprocess.run(["git", "commit", "-qm", commit["message"]], cwd=repo,
-                           env=env | {"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
-                           capture_output=True)
-        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env=env,
-                              capture_output=True, text=True).stdout.strip()
+            subprocess.run(
+                ["git", "commit", "-qm", commit["message"]],
+                cwd=repo,
+                env=env | {"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when},
+                capture_output=True,
+            )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, env=env, capture_output=True, text=True
+        ).stdout.strip()
         (Path(spec.vars["root"]) / f"base-{fixture['name']}.sha").write_text(head + "\n")
 
 
@@ -742,23 +789,31 @@ def reset_sandbox(spec: Spec) -> None:
     for fixture in spec.fixtures:
         repo = base / fixture["name"]
         if not repo.exists():
-            die(f"fixture {repo} is gone (a /tmp wipe does that) — "
-                f"rebuild it: tui-record seed {spec.path}")
-        listing = subprocess.run(["git", "-C", str(repo), "worktree", "list"],
-                                 capture_output=True, text=True).stdout.splitlines()[1:]
+            die(
+                f"fixture {repo} is gone (a /tmp wipe does that) — "
+                f"rebuild it: tui-record seed {spec.path}"
+            )
+        listing = subprocess.run(
+            ["git", "-C", str(repo), "worktree", "list"], capture_output=True, text=True
+        ).stdout.splitlines()[1:]
         for line in listing:
-            subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force",
-                            line.split()[0]], capture_output=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "worktree", "remove", "--force", line.split()[0]],
+                capture_output=True,
+            )
         subprocess.run(["git", "-C", str(repo), "worktree", "prune"], capture_output=True)
         pattern = spec.sandbox.get("scratch_branches", "agent/*")
-        branches = subprocess.run(["git", "-C", str(repo), "branch", "--list", pattern],
-                                  capture_output=True, text=True).stdout.split()
+        branches = subprocess.run(
+            ["git", "-C", str(repo), "branch", "--list", pattern], capture_output=True, text=True
+        ).stdout.split()
         for branch in (b for b in branches if b != "*"):
             subprocess.run(["git", "-C", str(repo), "branch", "-D", branch], capture_output=True)
         sha_file = Path(spec.vars["root"]) / f"base-{fixture['name']}.sha"
         if sha_file.exists():
-            subprocess.run(["git", "-C", str(repo), "reset", "-q", "--hard",
-                            sha_file.read_text().strip()], capture_output=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "reset", "-q", "--hard", sha_file.read_text().strip()],
+                capture_output=True,
+            )
         subprocess.run(["git", "-C", str(repo), "checkout", "-q", "main"], capture_output=True)
     for leftover in spec.sandbox.get("clear", []):
         shutil.rmtree(Path(spec.resolve(leftover)), ignore_errors=True)
@@ -784,26 +839,43 @@ def launch(spec: Spec, cast: Path | None) -> Screen:
     launcher.parent.mkdir(parents=True, exist_ok=True)
     assignments = " \\\n  ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
     inner = " ".join(shlex.quote(part) for part in command)
-    launcher.write_text(f"#!/usr/bin/env bash\ncd {shlex.quote(cwd)}\nexec env -i \\\n"
-                        f"  {assignments} \\\n  {inner}\n")
+    launcher.write_text(
+        f"#!/usr/bin/env bash\ncd {shlex.quote(cwd)}\nexec env -i \\\n"
+        f"  {assignments} \\\n  {inner}\n"
+    )
     os.chmod(launcher, 0o755)
 
     if cast:
         cast.parent.mkdir(parents=True, exist_ok=True)
         cast.unlink(missing_ok=True)
         title = shlex.quote(spec.video.get("title", "demo"))
-        outer = (f"asciinema rec -q --overwrite -e TERM -t {title} "
-                 f"-c {shlex.quote(str(launcher))} {shlex.quote(str(cast))}; sleep 4")
+        outer = (
+            f"asciinema rec -q --overwrite -e TERM -t {title} "
+            f"-c {shlex.quote(str(launcher))} {shlex.quote(str(cast))}; sleep 4"
+        )
     else:
         outer = f"{shlex.quote(str(launcher))}; sleep 3600"
 
-    subprocess.run(["tmux", "new-session", "-d", "-s", session,
-                    "-x", str(spec.video.get("cols", 140)),
-                    "-y", str(spec.video.get("rows", 36)), outer], check=True)
+    subprocess.run(
+        [
+            "tmux",
+            "new-session",
+            "-d",
+            "-s",
+            session,
+            "-x",
+            str(spec.video.get("cols", 140)),
+            "-y",
+            str(spec.video.get("rows", 36)),
+            outer,
+        ],
+        check=True,
+    )
     return Screen(session, sidebar=int(spec.video.get("sidebar", 31)))
 
 
 # ── the pipeline ─────────────────────────────────────────────────────────
+
 
 def cmd_run(spec: Spec, args) -> int:
     need("tmux", "asciinema")
@@ -827,16 +899,17 @@ def cmd_run(spec: Spec, args) -> int:
             say(f"take {attempt}: {failure} — retrying")
             subprocess.run(["tmux", "kill-session", "-t", screen.session], capture_output=True)
             continue
-        for _ in range(25):                       # asciinema writes on exit
+        for _ in range(25):  # asciinema writes on exit
             if cast.exists() and cast.stat().st_size and not screen.alive():
                 break
             time.sleep(1)
         if not (cast.exists() and cast.stat().st_size):
             say(f"take {attempt}: no cast came out — retrying")
             continue
-        shutil.copy(cast, cast.with_suffix(".raw.cast"))   # the negative
+        shutil.copy(cast, cast.with_suffix(".raw.cast"))  # the negative
         cast.with_suffix(".marks").write_text(
-            "".join(f"{name} {when}\n" for name, when in [("launch", launched), *take.marks]))
+            "".join(f"{name} {when}\n" for name, when in [("launch", launched), *take.marks])
+        )
         say(f"take {attempt}: recorded ({cast_duration(cast):.0f}s)")
         return finish(spec)
     die(f"all {attempts} attempts failed")
@@ -852,8 +925,7 @@ def cmd_recut(spec: Spec, args) -> int:
 
 def finish(spec: Spec) -> int:
     cast = spec.cast
-    compress(cast, cast.with_suffix(".marks"),
-             float(spec.video.get("wait_collapse", 1.5)))
+    compress(cast, cast.with_suffix(".marks"), float(spec.video.get("wait_collapse", 1.5)))
     if leaks(cast, spec.video.get("forbid", []), spec.video.get("allow", [])):
         die("the cast still shows something identifying — redact before publishing", code=2)
     # Only past the scan: every artifact below is the cast, drawn or not.
@@ -928,8 +1000,9 @@ def take_end(lines: list[str], marks: dict) -> float | None:
     driver_end = marks.get("driver_end")
     floor = 0.0
     if driver_end is not None:
-        earlier = [when for name, when in marks.items()
-                   if name != "driver_end" and when < driver_end]
+        earlier = [
+            when for name, when in marks.items() if name != "driver_end" and when < driver_end
+        ]
         floor = max([driver_end - MARK_LEAD, *earlier])
     for line in reversed(lines[1:]):
         when, _, data = json.loads(line)
@@ -969,9 +1042,11 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
 
     # `driver_start`/`driver_end` bracket the whole take, not a wait: pairing
     # them would collapse the entire video into one beat.
-    spans = sorted((marks[key], marks[key[:-6] + "_end"]) for key in marks
-                   if key.endswith("_start") and not key.startswith("driver_")
-                   and key[:-6] + "_end" in marks)
+    spans = sorted(
+        (marks[key], marks[key[:-6] + "_end"])
+        for key in marks
+        if key.endswith("_start") and not key.startswith("driver_") and key[:-6] + "_end" in marks
+    )
     head = max(marks.get("driver_start", 0.0) - 0.6, 0.0)
 
     cut = take_end(lines, marks)
@@ -984,8 +1059,7 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
             length = end - start
             if length <= span_target:
                 continue
-            out -= ((t - start) * (1 - span_target / length) if t < end
-                    else length - span_target)
+            out -= (t - start) * (1 - span_target / length) if t < end else length - span_target
         return out
 
     head_at = squeeze(head)
@@ -998,7 +1072,7 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
         if cut is not None and when == cut and ALT_SCREEN_EXIT in data:
             # The exit shares its write with whatever the app flushed just
             # before it; that part is still the app's last frame.
-            data = data[:data.index(ALT_SCREEN_EXIT)]
+            data = data[: data.index(ALT_SCREEN_EXIT)]
             if not data:
                 dropped += 1
                 continue
@@ -1006,14 +1080,17 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
         # Raw UTF-8, as asciinema itself writes it: the cut cast is what a
         # site downloads, and `\uXXXX` escapes for every box-drawing glyph
         # make it larger than the raw take it was cut from.
-        kept.append(json.dumps([round(max(moved - head_at, 0.0), 6), kind, data],
-                               ensure_ascii=False))
+        kept.append(
+            json.dumps([round(max(moved - head_at, 0.0), 6), kind, data], ensure_ascii=False)
+        )
     cast.write_text("\n".join(kept) + "\n", encoding="utf-8")
 
     for start, end in spans:
         say(f"wait of {end - start:.1f}s → {min(end - start, span_target):.1f}s")
-    say(f"startup of {head:.1f}s collapsed"
-        + (f", {dropped} trailing events cut" if dropped else ""))
+    say(
+        f"startup of {head:.1f}s collapsed"
+        + (f", {dropped} trailing events cut" if dropped else "")
+    )
     say(f"{before:.0f}s → {cast_duration(cast):.0f}s")
 
 
@@ -1039,27 +1116,34 @@ def leaks(cast: Path, extra: list, allowed: list | tuple = ()) -> bool:
     lines = cast_lines(cast)
     header = json.loads(lines[0])
     body = "\n".join(lines[1:])
-    say(f"{header.get('width')}x{header.get('height')}, {cast_duration(cast):.0f}s "
-        f"over {len(lines) - 1} events, env {header.get('env', {})}")
-    spans = [match.span() for pattern in allowed
-             for match in re.finditer(pattern, body)]
-    patterns = [("username", re.escape(os.environ.get("USER", "\0"))),
-                ("home", re.escape(str(Path.home()))),
-                ("hostname", re.escape(os.uname().nodename))] + LEAK_PATTERNS
+    say(
+        f"{header.get('width')}x{header.get('height')}, {cast_duration(cast):.0f}s "
+        f"over {len(lines) - 1} events, env {header.get('env', {})}"
+    )
+    spans = [match.span() for pattern in allowed for match in re.finditer(pattern, body)]
+    patterns = [
+        ("username", re.escape(os.environ.get("USER", "\0"))),
+        ("home", re.escape(str(Path.home()))),
+        ("hostname", re.escape(os.uname().nodename)),
+    ] + LEAK_PATTERNS
     patterns += [(f"forbid {pattern}", pattern) for pattern in extra]
     found, excused = False, 0
     for label, pattern in patterns:
         hits = [match.span() for match in re.finditer(pattern, body)]
-        inside = [hit for hit in hits
-                  if any(low <= hit[0] and hit[1] <= high for low, high in spans)]
+        inside = [
+            hit for hit in hits if any(low <= hit[0] and hit[1] <= high for low, high in spans)
+        ]
         excused += len(inside)
         if remaining := len(hits) - len(inside):
             found = True
             print(f"  ✕ {label}: {remaining} occurrence(s)")
     if excused:
         say(f"{excused} hit(s) inside an allowed span")
-    print("  ✓ nothing identifying found" if not found else
-          "\n  redact with: tui-record redact <cast> --pattern '<regex>'")
+    print(
+        "  ✓ nothing identifying found"
+        if not found
+        else "\n  redact with: tui-record redact <cast> --pattern '<regex>'"
+    )
     return found
 
 
@@ -1081,10 +1165,10 @@ def families_in(dirs: list[Path]) -> set[str]:
         for font in sorted(directory.rglob("*")):
             if font.suffix.lower() not in (".ttf", ".otf"):
                 continue
-            listed = subprocess.run(["fc-scan", "--format", "%{family}\n", str(font)],
-                                    capture_output=True, text=True).stdout
-            found.update(name.strip() for line in listed.splitlines()
-                         for name in line.split(","))
+            listed = subprocess.run(
+                ["fc-scan", "--format", "%{family}\n", str(font)], capture_output=True, text=True
+            ).stdout
+            found.update(name.strip() for line in listed.splitlines() for name in line.split(","))
     return found
 
 
@@ -1107,25 +1191,33 @@ def unresolved(family: str, dirs: list[Path]) -> None:
             continue
         got = subprocess.run(["fc-match", name], capture_output=True, text=True).stdout
         if f'"{name}"' not in got:
-            say(f"! font {name!r} is not installed — "
-                f"fontconfig answers {got.strip() or '?'}")
+            say(f"! font {name!r} is not installed — fontconfig answers {got.strip() or '?'}")
 
 
 def render(spec: Spec, cast: Path, out: Path) -> None:
     need("agg")
     video = spec.video
-    palette = video.get("palette",
-                        "15181a,e06c75,98c379,e5c07b,61afef,c678dd,56b6c2,abb2bf,"
-                        "4b5263,f07178,b5e890,f0d399,7cc4ff,d7a3ea,7fdbd4,f2f4f6")
+    palette = video.get(
+        "palette",
+        "15181a,e06c75,98c379,e5c07b,61afef,c678dd,56b6c2,abb2bf,"
+        "4b5263,f07178,b5e890,f0d399,7cc4ff,d7a3ea,7fdbd4,f2f4f6",
+    )
     # The renderer paints the frame's padding in the theme background, so a
     # background that is not the app's shows as a border in a colour it never
     # uses.
     theme = f"{video.get('background', '0a0c0d')},{video.get('foreground', 'e2e4e6')},{palette}"
     out.parent.mkdir(parents=True, exist_ok=True)
-    command = ["agg", "--theme", theme,
-               "--font-size", str(video.get("font_size", 14)),
-               "--speed", str(video.get("speed", 1.0)),
-               "--idle-time-limit", str(video.get("idle_limit", 1.5))]
+    command = [
+        "agg",
+        "--theme",
+        theme,
+        "--font-size",
+        str(video.get("font_size", 14)),
+        "--speed",
+        str(video.get("speed", 1.0)),
+        "--idle-time-limit",
+        str(video.get("idle_limit", 1.5)),
+    ]
     # An app that draws with a patched font needs the renderer to have one
     # too, and the renderer's default list is family *names*: "JetBrains
     # Mono" does not find "JetBrainsMono Nerd Font", so every icon lands as
@@ -1182,7 +1274,7 @@ def gif_frame_at(gif: Path, at: float) -> int:
     data = gif.read_bytes()
     start, index, cursor = 0.0, 0, 0
     while (found := data.find(b"\x21\xf9\x04", cursor)) >= 0:
-        delay = int.from_bytes(data[found + 4:found + 6], "little") / 100
+        delay = int.from_bytes(data[found + 4 : found + 6], "little") / 100
         if at < start + delay:
             return index
         start, index, cursor = start + delay, index + 1, found + 8
@@ -1195,13 +1287,29 @@ def make_poster(gif: Path, poster: Path, at: float) -> None:
         return
     poster.parent.mkdir(parents=True, exist_ok=True)
     frame = gif_frame_at(gif, at)
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(gif),
-                    "-vf", f"select=eq(n\\,{frame})", "-vsync", "0",
-                    "-frames:v", "1", str(poster)], check=False)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(gif),
+            "-vf",
+            f"select=eq(n\\,{frame})",
+            "-vsync",
+            "0",
+            "-frames:v",
+            "1",
+            str(poster),
+        ],
+        check=False,
+    )
     say(f"{poster} (frame {frame}, at {at:g}s)")
 
 
 # ── authoring aids ───────────────────────────────────────────────────────
+
 
 def cmd_probe(spec: Spec, args) -> int:
     """The app, in its sandbox, with no recording — for writing a beat and
@@ -1228,7 +1336,7 @@ def cmd_probe(spec: Spec, args) -> int:
         print(screen.pane())
         return 0
     if args.find:
-        for where in ([args.where] if args.where else ("screen", "sidebar", "pane", "strip")):
+        for where in [args.where] if args.where else ("screen", "sidebar", "pane", "strip"):
             row, col = screen.find(args.find, where)
             print(f"  {where:8} " + (f"row {row}, col {col}" if col else "not found"))
         return 0
@@ -1240,9 +1348,11 @@ def cmd_beats(spec: Spec, args) -> int:
     """The script, as prose. This is the thing to edit first; the beats are
     the performance of it."""
     video = spec.video
-    print(f"{video.get('title', spec.path.stem)} — "
-          f"{video.get('cols', 140)}x{video.get('rows', 36)} at {video.get('speed', 1.0)}x "
-          f"→ {video.get('out') or f'{spec.gif} (beside the cast)'}")
+    print(
+        f"{video.get('title', spec.path.stem)} — "
+        f"{video.get('cols', 140)}x{video.get('rows', 36)} at {video.get('speed', 1.0)}x "
+        f"→ {video.get('out') or f'{spec.gif} (beside the cast)'}"
+    )
     print()
     step = 0
     for beat in spec.beats:
@@ -1273,8 +1383,9 @@ def cmd_validate(spec: Spec, args) -> int:
     if not spec.beats:
         problems.append("no [[beat]]: the video would be a still")
     elif not any("end" in beat for beat in spec.beats):
-        problems.append("no beat ends the take — asciinema writes nothing "
-                        "if the recorded app never exits")
+        problems.append(
+            "no beat ends the take — asciinema writes nothing if the recorded app never exits"
+        )
     for index, beat in enumerate(spec.beats, 1):
         action = Take.action_of(beat)
         label = beat.get("say", f"beat {index}")
@@ -1295,8 +1406,10 @@ def cmd_validate(spec: Spec, args) -> int:
             problems.append(f"publish from {source!r} has no `to`")
     names = [fixture.get("name") for fixture in spec.fixtures]
     for name in sorted({name for name in names if names.count(name) > 1}):
-        problems.append(f"fixture {name!r} is defined more than once — "
-                        "two definitions would rebuild one repository")
+        problems.append(
+            f"fixture {name!r} is defined more than once — "
+            "two definitions would rebuild one repository"
+        )
     fixtures = Path(spec.vars["fixtures"])
     for fixture in spec.fixtures:
         if not (fixtures / fixture["name"]).exists():
@@ -1314,10 +1427,12 @@ def cmd_validate(spec: Spec, args) -> int:
 
 
 def cmd_doctor(spec: Spec | None, args) -> int:
-    tools = [("tmux", "drives the recorded pty", "apt install tmux"),
-             ("asciinema", "records the cast", "apt install asciinema"),
-             ("agg", "cast to GIF", "cargo install --git https://github.com/asciinema/agg"),
-             ("ffmpeg", "poster frames, mp4", "apt install ffmpeg")]
+    tools = [
+        ("tmux", "drives the recorded pty", "apt install tmux"),
+        ("asciinema", "records the cast", "apt install asciinema"),
+        ("agg", "cast to GIF", "cargo install --git https://github.com/asciinema/agg"),
+        ("ffmpeg", "poster frames, mp4", "apt install ffmpeg"),
+    ]
     missing = 0
     for name, what, how in tools:
         if shutil.which(name):
@@ -1356,7 +1471,7 @@ def cmd_redact(args) -> int:
     return 0
 
 
-SCAFFOLD = '''# What this video is, and everything needed to make it again.
+SCAFFOLD = """# What this video is, and everything needed to make it again.
 # `tui-record beats demo.toml` reads it back as prose; `validate` checks it.
 
 [video]
@@ -1401,7 +1516,7 @@ pause = 2.0
 [[beat]]
 say = "and leaves"
 end = "C-c"
-'''
+"""
 
 
 def cmd_init(argument: str, args) -> int:
@@ -1417,8 +1532,9 @@ def cmd_init(argument: str, args) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="tui-record", description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        prog="tui-record", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command")
     for name in ("validate", "beats", "seed"):
         sub.add_parser(name).add_argument("spec", nargs="?", default=".")
@@ -1458,8 +1574,14 @@ def main() -> int:
     if args.command == "doctor":
         return cmd_doctor(load_spec(args.spec) if args.spec else None, args)
     spec = load_spec(args.spec)
-    return {"validate": cmd_validate, "beats": cmd_beats, "seed": cmd_seed,
-            "probe": cmd_probe, "run": cmd_run, "recut": cmd_recut}[args.command](spec, args)
+    return {
+        "validate": cmd_validate,
+        "beats": cmd_beats,
+        "seed": cmd_seed,
+        "probe": cmd_probe,
+        "run": cmd_run,
+        "recut": cmd_recut,
+    }[args.command](spec, args)
 
 
 if __name__ == "__main__":

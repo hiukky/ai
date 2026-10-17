@@ -72,8 +72,7 @@ def du(paths: list[Path]) -> dict[str, int]:
     paths = [p for p in paths if p.exists()]
     if not paths:
         return {}
-    done = subprocess.run(["du", "-sxB1", *map(str, paths)],
-                          capture_output=True, text=True)
+    done = subprocess.run(["du", "-sxB1", *map(str, paths)], capture_output=True, text=True)
     sizes = {}
     for line in done.stdout.splitlines():
         size, _, path = line.partition("\t")
@@ -145,8 +144,13 @@ $optimize = [bool](Get-Command Optimize-VHD -ErrorAction SilentlyContinue)
 
 def powershell() -> str | None:
     return shutil.which("powershell.exe") or next(
-        (p for p in ("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",)
-         if Path(p).exists()), None)
+        (
+            p
+            for p in ("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",)
+            if Path(p).exists()
+        ),
+        None,
+    )
 
 
 def start_host(folders: bool) -> subprocess.Popen | None:
@@ -161,11 +165,20 @@ def start_host(folders: bool) -> subprocess.Popen | None:
     with os.fdopen(fd, "w", encoding="utf-8-sig") as handle:
         handle.write(HOST_PS)
     winpath = run(["wslpath", "-w", name]).strip()
-    env = dict(os.environ, RECLAIM_FOLDERS="1" if folders else "0",
-               WSLENV=":".join(filter(None, [os.environ.get("WSLENV"), "RECLAIM_FOLDERS"])))
-    proc = subprocess.Popen([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", winpath],
-                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True, env=env, cwd="/")
+    env = dict(
+        os.environ,
+        RECLAIM_FOLDERS="1" if folders else "0",
+        WSLENV=":".join(filter(None, [os.environ.get("WSLENV"), "RECLAIM_FOLDERS"])),
+    )
+    proc = subprocess.Popen(
+        [ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", winpath],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        env=env,
+        cwd="/",
+    )
     proc.script = name  # type: ignore[attr-defined]  # carried to finish_host, which deletes it
     return proc
 
@@ -189,21 +202,33 @@ def finish_host(proc: subprocess.Popen | None) -> dict:
 # Folders on the host whose contents regenerate or are plainly disposable.
 HOST_KNOWN = {
     "$recycle.bin": ("regenerable", "Clear-RecycleBin -Force", "emptied recycle bin"),
-    "temp": ("regenerable",
-             "Get-ChildItem $env:TEMP -Force | ? LastWriteTime -lt (Get-Date).AddDays(-7) | Remove-Item -Recurse -Force -EA SilentlyContinue",
-             "temp files older than a week; files in use are skipped"),
-    "windows": ("judgement", "Dism /Online /Cleanup-Image /StartComponentCleanup   # elevated",
-                "only the component store shrinks; never delete by hand"),
-    "hiberfil.sys": ("judgement", "powercfg /hibernate off   # elevated",
-                     "hibernation file; only worth keeping if the machine hibernates"),
+    "temp": (
+        "regenerable",
+        "Get-ChildItem $env:TEMP -Force | ? LastWriteTime -lt (Get-Date).AddDays(-7) | Remove-Item -Recurse -Force -EA SilentlyContinue",
+        "temp files older than a week; files in use are skipped",
+    ),
+    "windows": (
+        "judgement",
+        "Dism /Online /Cleanup-Image /StartComponentCleanup   # elevated",
+        "only the component store shrinks; never delete by hand",
+    ),
+    "hiberfil.sys": (
+        "judgement",
+        "powercfg /hibernate off   # elevated",
+        "hibernation file; only worth keeping if the machine hibernates",
+    ),
     "pagefile.sys": ("judgement", "", "virtual memory; leave it to Windows"),
     ".android": ("judgement", "", "emulator images (avd/); delete unused AVDs from Android Studio"),
-    "softwaredistribution": ("regenerable", "Dism /Online /Cleanup-Image /StartComponentCleanup   # elevated",
-                             "update downloads"),
+    "softwaredistribution": (
+        "regenerable",
+        "Dism /Online /Cleanup-Image /StartComponentCleanup   # elevated",
+        "update downloads",
+    ),
 }
 
 
 # ── the Linux side ──────────────────────────────────────────────────────────
+
 
 def filesystems() -> list[dict]:
     out = run(["df", "-B1", "--output=source,fstype,size,used,avail,target"])
@@ -212,16 +237,33 @@ def filesystems() -> list[dict]:
         parts = line.split()
         if len(parts) < 6:
             continue
-        source, fstype, size, used, avail, target = parts[0], parts[1], *parts[2:5], " ".join(parts[5:])
-        if target == "/" or fstype in ("9p", "drvfs", "v9fs") and re.fullmatch(r"/mnt/[a-z]", target):
-            rows.append({"target": target, "fstype": fstype, "size": int(size),
-                         "used": int(used), "avail": int(avail)})
+        source, fstype, size, used, avail, target = (
+            parts[0],
+            parts[1],
+            *parts[2:5],
+            " ".join(parts[5:]),
+        )
+        if (
+            target == "/"
+            or fstype in ("9p", "drvfs", "v9fs")
+            and re.fullmatch(r"/mnt/[a-z]", target)
+        ):
+            rows.append(
+                {
+                    "target": target,
+                    "fstype": fstype,
+                    "size": int(size),
+                    "used": int(used),
+                    "avail": int(avail),
+                }
+            )
     return rows
 
 
 def home_top(top: int) -> list[dict]:
-    out = subprocess.run(["du", "-xB1", "--max-depth=1", str(HOME)],
-                         capture_output=True, text=True).stdout
+    out = subprocess.run(
+        ["du", "-xB1", "--max-depth=1", str(HOME)], capture_output=True, text=True
+    ).stdout
     rows: list[dict[str, Any]] = []
     for line in out.splitlines():
         size, _, path = line.partition("\t")
@@ -231,7 +273,9 @@ def home_top(top: int) -> list[dict]:
 
 
 def default_branch(repo: Path) -> str | None:
-    ref = run(["git", "-C", str(repo), "symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).strip()
+    ref = run(
+        ["git", "-C", str(repo), "symbolic-ref", "--short", "refs/remotes/origin/HEAD"]
+    ).strip()
     if ref:
         return ref
     for name in ("main", "master", "trunk"):
@@ -243,8 +287,24 @@ def default_branch(repo: Path) -> str | None:
 def repos() -> list[Path]:
     """Primary checkouts under $HOME: a `.git` *directory* (a worktree's is a
     file). Shallow on purpose — projects sit near the top of a home."""
-    out = run(["find", str(HOME), "-xdev", "-maxdepth", "4", "-name", ".git", "-type", "d",
-               "-not", "-path", "*/.*/*/.git", "-prune"], timeout=120)
+    out = run(
+        [
+            "find",
+            str(HOME),
+            "-xdev",
+            "-maxdepth",
+            "4",
+            "-name",
+            ".git",
+            "-type",
+            "d",
+            "-not",
+            "-path",
+            "*/.*/*/.git",
+            "-prune",
+        ],
+        timeout=120,
+    )
     return sorted({Path(line).parent for line in out.splitlines() if line})
 
 
@@ -263,20 +323,40 @@ def worktrees() -> list[dict]:
                 continue
             key, _, value = line.partition(" ")
             current[key] = value or True
-        for entry in entries[1:]:          # the first is the primary checkout itself
+        for entry in entries[1:]:  # the first is the primary checkout itself
             path = Path(entry["worktree"])
             branch = str(entry.get("branch", "")).removeprefix("refs/heads/") or None
             merged = None
             if branch and base:
-                merged = subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor",
-                                         branch, base], capture_output=True).returncode == 0
-            dirty = len(run(["git", "-C", str(path), "status", "--porcelain"]).splitlines()) \
-                if path.exists() else 0
-            age = run(["git", "-C", str(repo), "log", "-1", "--format=%ct", branch]).strip() \
-                if branch else ""
-            rows.append({"repo": str(repo), "path": str(path), "branch": branch, "base": base,
-                         "merged": merged, "dirty": dirty, "prunable": "prunable" in entry,
-                         "days": round((time.time() - int(age)) / 86400, 1) if age else None})
+                merged = (
+                    subprocess.run(
+                        ["git", "-C", str(repo), "merge-base", "--is-ancestor", branch, base],
+                        capture_output=True,
+                    ).returncode
+                    == 0
+                )
+            dirty = (
+                len(run(["git", "-C", str(path), "status", "--porcelain"]).splitlines())
+                if path.exists()
+                else 0
+            )
+            age = (
+                run(["git", "-C", str(repo), "log", "-1", "--format=%ct", branch]).strip()
+                if branch
+                else ""
+            )
+            rows.append(
+                {
+                    "repo": str(repo),
+                    "path": str(path),
+                    "branch": branch,
+                    "base": base,
+                    "merged": merged,
+                    "dirty": dirty,
+                    "prunable": "prunable" in entry,
+                    "days": round((time.time() - int(age)) / 86400, 1) if age else None,
+                }
+            )
     sizes = du([Path(r["path"]) for r in rows])
     for r in rows:
         r["bytes"] = sizes.get(r["path"], 0)
@@ -286,8 +366,26 @@ def worktrees() -> list[dict]:
 def build_dirs() -> list[dict]:
     """Build output a tool regenerates: a cargo `target/` (it writes a
     CACHEDIR.TAG, the standard marker for exactly this) and `node_modules/`."""
-    out = run(["find", str(HOME), "-xdev", "-maxdepth", "8", "(", "-name", "node_modules",
-               "-o", "-name", "target", ")", "-type", "d", "-prune"], timeout=300)
+    out = run(
+        [
+            "find",
+            str(HOME),
+            "-xdev",
+            "-maxdepth",
+            "8",
+            "(",
+            "-name",
+            "node_modules",
+            "-o",
+            "-name",
+            "target",
+            ")",
+            "-type",
+            "d",
+            "-prune",
+        ],
+        timeout=300,
+    )
     found = []
     for line in out.splitlines():
         path = Path(line)
@@ -297,15 +395,31 @@ def build_dirs() -> list[dict]:
             continue
         found.append(path)
     sizes = du(found)
-    rows: list[dict[str, Any]] = [{"path": str(p), "kind": "cargo" if p.name == "target" else "node",
-             "bytes": sizes.get(str(p), 0)} for p in found]
+    rows: list[dict[str, Any]] = [
+        {
+            "path": str(p),
+            "kind": "cargo" if p.name == "target" else "node",
+            "bytes": sizes.get(str(p), 0),
+        }
+        for p in found
+    ]
     return sorted([r for r in rows if r["bytes"] > 0], key=lambda r: -r["bytes"])
 
 
 def tool(name: str) -> str | None:
     return shutil.which(name) or next(
-        (str(p) for p in (HOME / ".local/share/mise/shims" / name, HOME / ".cargo/bin" / name,
-                          HOME / ".bun/bin" / name, HOME / ".local/bin" / name) if p.exists()), None)
+        (
+            str(p)
+            for p in (
+                HOME / ".local/share/mise/shims" / name,
+                HOME / ".cargo/bin" / name,
+                HOME / ".bun/bin" / name,
+                HOME / ".local/bin" / name,
+            )
+            if p.exists()
+        ),
+        None,
+    )
 
 
 def first_line(command: list[str]) -> str:
@@ -317,22 +431,86 @@ def first_line(command: list[str]) -> str:
 # its own layout, locks and in-flight downloads.
 CACHES = [
     ("uv", "uv", lambda t: first_line([t, "cache", "dir"]), ["cache", "clean"], "regenerable", ""),
-    ("pip", "pip3", lambda t: first_line([t, "cache", "dir"]), ["cache", "purge"], "regenerable", ""),
-    ("npm", "npm", lambda t: first_line([t, "config", "get", "cache"]), ["cache", "clean", "--force"],
-     "regenerable", ""),
-    ("pnpm", "pnpm", lambda t: first_line([t, "store", "path"]), ["store", "prune"], "regenerable",
-     "prune keeps what a project still links"),
-    ("yarn", "yarn", lambda t: first_line([t, "cache", "dir"]), ["cache", "clean"], "regenerable", ""),
-    ("bun", "bun", lambda t: str(HOME / ".bun/install/cache"), ["pm", "cache", "rm"], "regenerable", ""),
-    ("go", "go", lambda t: first_line([t, "env", "GOCACHE"]), ["clean", "-cache"], "regenerable", ""),
-    ("gradle", None, lambda t: str(HOME / ".gradle/caches"), None, "judgement",
-     "no clean command; deleting it forces every Android/JVM build to re-download"),
-    ("cargo-registry", None, lambda t: str(HOME / ".cargo/registry"), None, "judgement",
-     "crate sources; safe to drop only while no build runs"),
-    ("huggingface", None, lambda t: os.environ.get("HF_HOME") or str(HOME / ".cache/huggingface"),
-     None, "judgement", "downloaded models; `huggingface-cli delete-cache` picks per model"),
-    ("playwright", None, lambda t: str(HOME / ".cache/ms-playwright"), None, "judgement",
-     "browser binaries; re-downloaded by `playwright install`"),
+    (
+        "pip",
+        "pip3",
+        lambda t: first_line([t, "cache", "dir"]),
+        ["cache", "purge"],
+        "regenerable",
+        "",
+    ),
+    (
+        "npm",
+        "npm",
+        lambda t: first_line([t, "config", "get", "cache"]),
+        ["cache", "clean", "--force"],
+        "regenerable",
+        "",
+    ),
+    (
+        "pnpm",
+        "pnpm",
+        lambda t: first_line([t, "store", "path"]),
+        ["store", "prune"],
+        "regenerable",
+        "prune keeps what a project still links",
+    ),
+    (
+        "yarn",
+        "yarn",
+        lambda t: first_line([t, "cache", "dir"]),
+        ["cache", "clean"],
+        "regenerable",
+        "",
+    ),
+    (
+        "bun",
+        "bun",
+        lambda t: str(HOME / ".bun/install/cache"),
+        ["pm", "cache", "rm"],
+        "regenerable",
+        "",
+    ),
+    (
+        "go",
+        "go",
+        lambda t: first_line([t, "env", "GOCACHE"]),
+        ["clean", "-cache"],
+        "regenerable",
+        "",
+    ),
+    (
+        "gradle",
+        None,
+        lambda t: str(HOME / ".gradle/caches"),
+        None,
+        "judgement",
+        "no clean command; deleting it forces every Android/JVM build to re-download",
+    ),
+    (
+        "cargo-registry",
+        None,
+        lambda t: str(HOME / ".cargo/registry"),
+        None,
+        "judgement",
+        "crate sources; safe to drop only while no build runs",
+    ),
+    (
+        "huggingface",
+        None,
+        lambda t: os.environ.get("HF_HOME") or str(HOME / ".cache/huggingface"),
+        None,
+        "judgement",
+        "downloaded models; `huggingface-cli delete-cache` picks per model",
+    ),
+    (
+        "playwright",
+        None,
+        lambda t: str(HOME / ".cache/ms-playwright"),
+        None,
+        "judgement",
+        "browser binaries; re-downloaded by `playwright install`",
+    ),
 ]
 
 
@@ -345,8 +523,15 @@ def caches() -> list[dict]:
         location = where(path)
         if not location or not Path(location).exists():
             continue
-        rows.append({"name": name, "path": location, "kind": kind, "note": note,
-                     "clean": [path, *clean] if clean else None})
+        rows.append(
+            {
+                "name": name,
+                "path": location,
+                "kind": kind,
+                "note": note,
+                "clean": [path, *clean] if clean else None,
+            }
+        )
     sizes = du([Path(r["path"]) for r in rows])
     for r in rows:
         r["bytes"] = sizes.get(r["path"], 0)
@@ -371,8 +556,13 @@ def docker() -> list[dict]:
             item = json.loads(line)
         except json.JSONDecodeError:
             continue
-        rows.append({"type": item.get("Type"), "total": docker_bytes(item.get("Size", "")),
-                     "reclaimable": docker_bytes(item.get("Reclaimable", ""))})
+        rows.append(
+            {
+                "type": item.get("Type"),
+                "total": docker_bytes(item.get("Size", "")),
+                "reclaimable": docker_bytes(item.get("Reclaimable", "")),
+            }
+        )
     return rows
 
 
@@ -382,11 +572,18 @@ def system_extras() -> list[dict]:
     journal = run(["journalctl", "--disk-usage"])
     if match := re.search(r"take up ([\d.]+)([KMGT])", journal):
         size = float(match.group(1)) * 1024 ** "KMGT".index(match.group(2)) * 1024
-        rows.append({"name": "journal", "bytes": int(size),
-                     "command": "sudo journalctl --vacuum-time=2weeks"})
-    for path, command in (("/var/cache/apt/archives", "sudo apt-get clean"),
-                          ("/var/cache/pacman/pkg", "sudo paccache -r"),
-                          ("/var/cache/dnf", "sudo dnf clean all")):
+        rows.append(
+            {
+                "name": "journal",
+                "bytes": int(size),
+                "command": "sudo journalctl --vacuum-time=2weeks",
+            }
+        )
+    for path, command in (
+        ("/var/cache/apt/archives", "sudo apt-get clean"),
+        ("/var/cache/pacman/pkg", "sudo paccache -r"),
+        ("/var/cache/dnf", "sudo dnf clean all"),
+    ):
         if Path(path).is_dir():
             size = du([Path(path)]).get(path, 0)
             if size:
@@ -396,18 +593,25 @@ def system_extras() -> list[dict]:
 
 # ── scan ────────────────────────────────────────────────────────────────────
 
+
 def cmd_scan(args) -> int:
     wsl = in_wsl()
     host_proc = start_host(folders=not args.no_host) if wsl else None
     if host_proc and not args.no_host:
         say("measuring the Windows host in the background (a few minutes)")
 
-    say("filesystems");   fs = filesystems()
-    say("home");          top = home_top(args.top)
-    say("build output");  builds = build_dirs()
-    say("worktrees");     trees = worktrees()
-    say("caches");        cached = caches()
-    say("docker");        dock = docker()
+    say("filesystems")
+    fs = filesystems()
+    say("home")
+    top = home_top(args.top)
+    say("build output")
+    builds = build_dirs()
+    say("worktrees")
+    trees = worktrees()
+    say("caches")
+    cached = caches()
+    say("docker")
+    dock = docker()
     extras = system_extras()
     host = finish_host(host_proc)
 
@@ -418,9 +622,18 @@ def cmd_scan(args) -> int:
             disk["current"] = True
             disk["slack"] = max(int(disk["allocated"]) - root_used, 0)
 
-    report = {"wsl": wsl, "distro": distro, "filesystems": fs, "home": top, "builds": builds,
-              "worktrees": trees, "caches": cached, "docker": dock, "system": extras,
-              "host": host}
+    report = {
+        "wsl": wsl,
+        "distro": distro,
+        "filesystems": fs,
+        "home": top,
+        "builds": builds,
+        "worktrees": trees,
+        "caches": cached,
+        "docker": dock,
+        "system": extras,
+        "host": host,
+    }
     if args.json:
         print(json.dumps(report, indent=2))
     else:
@@ -438,25 +651,48 @@ def table(title: str, rows: list[tuple]) -> None:
 
 
 def print_report(r: dict, top: int) -> None:
-    table("Filesystems", [(human(f["used"]), f"{f['target']}",
-                           f"of {human(f['size'])}, {human(f['avail'])} free "
-                           f"({f['used'] * 100 // max(f['size'], 1)}%)") for f in r["filesystems"]])
+    table(
+        "Filesystems",
+        [
+            (
+                human(f["used"]),
+                f"{f['target']}",
+                f"of {human(f['size'])}, {human(f['avail'])} free "
+                f"({f['used'] * 100 // max(f['size'], 1)}%)",
+            )
+            for f in r["filesystems"]
+        ],
+    )
     host = r["host"]
-    table("Host drives", [(human(d["used"]), d["name"], f"{human(d['free'])} free")
-                          for d in host.get("drives", [])])
-    table("WSL virtual disks (allocated on the host)", [
-        (human(int(d["allocated"])), d["distro"],
-         "sparse" if d["sparse"] else "not sparse",
-         f"≈{human(d['slack'])} free inside, still held on the host" if d.get("slack") else "",
-         d["path"]) for d in host.get("disks", [])])
+    table(
+        "Host drives",
+        [(human(d["used"]), d["name"], f"{human(d['free'])} free") for d in host.get("drives", [])],
+    )
+    table(
+        "WSL virtual disks (allocated on the host)",
+        [
+            (
+                human(int(d["allocated"])),
+                d["distro"],
+                "sparse" if d["sparse"] else "not sparse",
+                f"≈{human(d['slack'])} free inside, still held on the host"
+                if d.get("slack")
+                else "",
+                d["path"],
+            )
+            for d in host.get("disks", [])
+        ],
+    )
 
     table(f"Home, top {top}", [(human(h["bytes"]), h["path"]) for h in r["home"]])
 
     regen = 0
     b = r["builds"]
     regen += sum(x["bytes"] for x in b)
-    table(f"Build output — regenerable, {human(sum(x['bytes'] for x in b))} in {len(b)} dirs",
-          [(human(x["bytes"]), x["kind"], x["path"]) for x in b[:top]])
+    table(
+        f"Build output — regenerable, {human(sum(x['bytes'] for x in b))} in {len(b)} dirs",
+        [(human(x["bytes"]), x["kind"], x["path"]) for x in b[:top]],
+    )
 
     def state(w):
         tags = ["merged" if w["merged"] else "open" if w["merged"] is False else "no branch"]
@@ -467,8 +703,11 @@ def print_report(r: dict, top: int) -> None:
         if w["days"] is not None:
             tags.append(f"{w['days']:g}d")
         return " ".join(tags)
-    table("Worktrees — judgement (merged ≠ squash-merged; read before removing)",
-          [(human(w["bytes"]), f"[{w['branch']}]", state(w), w["path"]) for w in r["worktrees"]])
+
+    table(
+        "Worktrees — judgement (merged ≠ squash-merged; read before removing)",
+        [(human(w["bytes"]), f"[{w['branch']}]", state(w), w["path"]) for w in r["worktrees"]],
+    )
 
     c = r["caches"]
     regen += sum(x["bytes"] for x in c if x["kind"] == "regenerable")
@@ -476,30 +715,51 @@ def print_report(r: dict, top: int) -> None:
 
     d = r["docker"]
     regen += sum(x["reclaimable"] for x in d if x["type"] in ("Build Cache", "Images"))
-    table("Docker (reclaimable of total)", [
-        (human(x["reclaimable"]), x["type"], f"of {human(x['total'])}",
-         "judgement: may hold data" if x["type"] == "Local Volumes" else "") for x in d])
+    table(
+        "Docker (reclaimable of total)",
+        [
+            (
+                human(x["reclaimable"]),
+                x["type"],
+                f"of {human(x['total'])}",
+                "judgement: may hold data" if x["type"] == "Local Volumes" else "",
+            )
+            for x in d
+        ],
+    )
 
-    table("Needs root — commands, not run", [(human(x["bytes"]), x["name"], x["command"])
-                                            for x in r["system"]])
+    table(
+        "Needs root — commands, not run",
+        [(human(x["bytes"]), x["name"], x["command"]) for x in r["system"]],
+    )
 
     folders = sorted(host.get("folders", []), key=lambda f: -int(f["bytes"]))
     rows = []
-    for f in folders[:top * 2]:
+    for f in folders[: top * 2]:
         known = HOST_KNOWN.get(f["path"].rstrip("\\").rsplit("\\", 1)[-1].lower())
-        rows.append((human(int(f["bytes"])), f["path"],
-                     f"{known[0]}: {known[2]}" + (f" → {known[1]}" if known[1] else "") if known else ""))
+        rows.append(
+            (
+                human(int(f["bytes"])),
+                f["path"],
+                f"{known[0]}: {known[2]}" + (f" → {known[1]}" if known[1] else "") if known else "",
+            )
+        )
     table("Host folders", rows)
 
-    print(f"\n\033[1mRegenerable: ≈{human(regen)}\033[0m (build output, caches, docker build "
-          "cache and unused images — nothing lost, only rebuild or re-download time)")
+    print(
+        f"\n\033[1mRegenerable: ≈{human(regen)}\033[0m (build output, caches, docker build "
+        "cache and unused images — nothing lost, only rebuild or re-download time)"
+    )
     slack = [d for d in host.get("disks", []) if d.get("slack")]
     if slack:
-        print(f"Space already free inside WSL but held by its disk: ≈{human(slack[0]['slack'])} "
-              "— `reclaim compact` prints how to hand it back.")
+        print(
+            f"Space already free inside WSL but held by its disk: ≈{human(slack[0]['slack'])} "
+            "— `reclaim compact` prints how to hand it back."
+        )
 
 
 # ── prune ───────────────────────────────────────────────────────────────────
+
 
 def free_bytes(path: str = "/") -> int:
     stat = os.statvfs(path)
@@ -525,8 +785,10 @@ def cmd_prune(args) -> int:
     if args.what == "docker":
         if not tool("docker"):
             die("docker not found")
-        commands = [["docker", "builder", "prune", "-f"] + (["-a"] if args.all else []),
-                    ["docker", "image", "prune", "-f"] + (["-a"] if args.all else [])]
+        commands = [
+            ["docker", "builder", "prune", "-f"] + (["-a"] if args.all else []),
+            ["docker", "image", "prune", "-f"] + (["-a"] if args.all else []),
+        ]
         return execute(commands, args.yes)
 
     if args.what == "caches":
@@ -546,16 +808,21 @@ def cmd_prune(args) -> int:
             path = Path(target).expanduser().resolve()
             if not path.is_dir():
                 die(f"{path}: not a directory")
-            if not ((path.name == "target" and (path / "CACHEDIR.TAG").exists())
-                    or path.name == "node_modules"):
-                die(f"{path}: not a build dir this script recognises "
-                    "(a cargo target/ with CACHEDIR.TAG, or node_modules/)")
+            if not (
+                (path.name == "target" and (path / "CACHEDIR.TAG").exists())
+                or path.name == "node_modules"
+            ):
+                die(
+                    f"{path}: not a build dir this script recognises "
+                    "(a cargo target/ with CACHEDIR.TAG, or node_modules/)"
+                )
             commands.append(["rm", "-rf", "--one-file-system", str(path)])
         return execute(commands, args.yes)
     die(f"unknown prune target {args.what}")
 
 
 # ── compact ─────────────────────────────────────────────────────────────────
+
 
 def cmd_compact(args) -> int:
     if not in_wsl():
@@ -566,13 +833,18 @@ def cmd_compact(args) -> int:
     if not disks:
         die(f"no virtual disk found for distro {distro!r}")
     disk = disks[0]
-    used = next((f["used"] for f in filesystems() if f["target"] == "/"), 0) \
-        if distro == os.environ.get("WSL_DISTRO_NAME") else None
+    used = (
+        next((f["used"] for f in filesystems() if f["target"] == "/"), 0)
+        if distro == os.environ.get("WSL_DISTRO_NAME")
+        else None
+    )
     slack = int(disk["allocated"]) - used if used else None
 
-    print(f"# {distro}: {human(int(disk['allocated']))} on the host"
-          + (f", {human(used)} used inside — ≈{human(slack)} to hand back" if used else "")
-          + ("" if disk["sparse"] else ", not sparse"))
+    print(
+        f"# {distro}: {human(int(disk['allocated']))} on the host"
+        + (f", {human(used)} used inside — ≈{human(slack)} to hand back" if used else "")
+        + ("" if disk["sparse"] else ", not sparse")
+    )
     print(f"""
 # 1. Here, inside {distro}: tell the disk which blocks are free
 sudo fstrim -av
@@ -586,12 +858,12 @@ wsl --manage {distro} --set-sparse true""")
     if host.get("optimize_vhd"):
         print(f"""
 # 3b. Hand back what is free right now (Optimize-VHD, from the Hyper-V module)
-Optimize-VHD -Path "{disk['path']}" -Mode Full""")
+Optimize-VHD -Path "{disk["path"]}" -Mode Full""")
     else:
         print(f"""
 # 3b. Hand back what is free right now (diskpart: Optimize-VHD is not on this host)
 @'
-select vdisk file="{disk['path']}"
+select vdisk file="{disk["path"]}"
 attach vdisk readonly
 compact vdisk
 detach vdisk
@@ -616,7 +888,9 @@ def main() -> int:
     prune = sub.add_parser("prune", help="remove what regenerates (dry run without --yes)")
     prune.add_argument("what", choices=["docker", "caches", "build"])
     prune.add_argument("targets", nargs="*")
-    prune.add_argument("--all", action="store_true", help="docker: all unused images, not just dangling")
+    prune.add_argument(
+        "--all", action="store_true", help="docker: all unused images, not just dangling"
+    )
     prune.add_argument("--yes", action="store_true")
     prune.set_defaults(func=cmd_prune)
 

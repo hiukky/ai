@@ -29,8 +29,14 @@ CONFIG = Path("openspec") / "config.yaml"
 SCHEMA_DEST = Path("openspec") / "schemas" / "adr-driven"
 DEFAULT_ARCH = "docs/architecture"
 MANIFESTS = (
-    "package.json", "Cargo.toml", "pyproject.toml", "go.mod",
-    "build.gradle", "pom.xml", "Gemfile", "composer.json",
+    "package.json",
+    "Cargo.toml",
+    "pyproject.toml",
+    "go.mod",
+    "build.gradle",
+    "pom.xml",
+    "Gemfile",
+    "composer.json",
 )
 HARNESS_DIRS = (".claude", ".codex", ".opencode", ".gemini", ".cursor")
 
@@ -256,7 +262,10 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str]) -> int:
     if not (SCHEMA_SRC / "schema.yaml").is_file():
-        print(f"openspec-init: no schema at {SCHEMA_SRC} - wrong plugin root ({PLUGIN_ROOT})", file=sys.stderr)
+        print(
+            f"openspec-init: no schema at {SCHEMA_SRC} - wrong plugin root ({PLUGIN_ROOT})",
+            file=sys.stderr,
+        )
         return 1
     root = parser()
     args = root.parse_args(argv)
