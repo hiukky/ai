@@ -116,6 +116,12 @@ class Spec:
         path = Path(self.resolve(value))
         return path if path.is_absolute() else self.root / path
 
+    @property
+    def gif(self) -> Path:
+        """Always rendered, even when only the cast is published: the GIF is
+        how a take is reviewed before anything leaves the machine."""
+        return self.out_path("out") or self.cast.with_suffix(".gif")
+
     def env(self) -> dict:
         """Built, never inherited: an inherited variable is how a recording
         ends up with somebody's name in it."""
@@ -570,8 +576,8 @@ class Take:
         return
 
     def _end(self, beat: dict, label: str) -> None:
-        # Marked before the key: the cut stops here, so the app's own exit —
-        # the write that blanks the screen — never reaches the video.
+        # Marked before the key: where the cut starts looking for the app's
+        # own exit (see `take_end`), and where it stops when there is none.
         self.mark("driver_end")
         time.sleep(0.5)
         self.screen.key(beat["end"] if isinstance(beat["end"], str) else "C-q")
@@ -849,18 +855,23 @@ def finish(spec: Spec) -> int:
              float(spec.video.get("wait_collapse", 1.5)))
     if leaks(cast, spec.video.get("forbid", []), spec.video.get("allow", [])):
         die("the cast still shows something identifying — redact before publishing", code=2)
-    produced = {}
-    if out := spec.out_path("out"):
-        render(spec, cast, out)
-        produced["out"] = out
-        poster = spec.out_path("poster")
-        if poster:
-            at = poster_time(spec, cast)
-            if at is not None:
-                make_poster(out, poster, at)
-                produced["poster"] = poster
+    # Only past the scan: every artifact below is the cast, drawn or not.
+    produced = {"cast": cast}
+    out = spec.gif
+    render(spec, cast, out)
+    produced["out"] = out
+    if poster := spec.out_path("poster"):
+        at = poster_time(spec, cast)
+        if at is not None:
+            make_poster(out, poster, at)
+            produced["poster"] = poster
     publish(spec, produced)
     return 0
+
+
+# `cast` is the cut take — the one a player shows as text — never the
+# `.raw.cast` negative, which still holds the startup, the waits and the exit.
+PUBLISHABLE = ("out", "poster", "cast")
 
 
 def publish(spec: Spec, produced: dict) -> None:
@@ -887,6 +898,45 @@ def cast_lines(cast: Path) -> list[str]:
 def cast_duration(cast: Path) -> float:
     lines = cast_lines(cast)
     return json.loads(lines[-1])[0] if len(lines) > 1 else 0.0
+
+
+ALT_SCREEN_EXIT = "\x1b[?1049l"
+# How far a mark may run *ahead* of the cast: marks are measured from the
+# launch, which precedes the recorder's own start by the time tmux takes to
+# spawn it.
+MARK_LEAD = 1.0
+
+
+def take_end(lines: list[str], marks: dict) -> float | None:
+    """Where the video stops, in cast time: the app's own exit, found in the
+    cast, and the `driver_end` mark only when the cast holds no exit.
+
+    The marks are the driver's wall clock; the cast is when the recorder read
+    the pty. Under load the two drift apart by seconds, always with the cast
+    behind, so a cut at `driver_end` lands *before* the last beats' output
+    and loses them. The app leaving the alternate screen cannot drift: it is
+    in the cast itself, it happens only after the `end` key, and it is exactly
+    the write that blanks the screen. So the cut is that write — searched for
+    from the latest mark before `driver_end` (or `driver_end` minus what a
+    mark can lead by, if later), so an editor or pager the app opened during
+    an earlier beat is never taken for its exit, and the *last* exit after
+    that point is taken, because a program that leaves the alternate screen
+    inside the lag window precedes the app's own exit, never follows it.
+    Without one, the app never left the alternate screen (it was killed, or
+    draws inline), and `driver_end` is all there is."""
+    driver_end = marks.get("driver_end")
+    floor = 0.0
+    if driver_end is not None:
+        earlier = [when for name, when in marks.items()
+                   if name != "driver_end" and when < driver_end]
+        floor = max([driver_end - MARK_LEAD, *earlier])
+    for line in reversed(lines[1:]):
+        when, _, data = json.loads(line)
+        if when < floor:
+            break
+        if ALT_SCREEN_EXIT in data:
+            return when
+    return driver_end + 0.4 if driver_end is not None else None
 
 
 def compress(cast: Path, marks_file: Path, span_target: float) -> None:
@@ -923,15 +973,7 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
                    and key[:-6] + "_end" in marks)
     head = max(marks.get("driver_start", 0.0) - 0.6, 0.0)
 
-    ends = []
-    if "driver_end" in marks:
-        ends.append(marks["driver_end"] + 0.4)
-    for line in reversed(lines[1:]):
-        when, _, data = json.loads(line)
-        if "[?1049l" in data:
-            ends.append(when - 0.01)
-            break
-    cut = min(ends) if ends else None
+    cut = take_end(lines, marks)
 
     def squeeze(t: float) -> float:
         out = t
@@ -952,6 +994,13 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
         if cut is not None and when > cut:
             dropped += 1
             continue
+        if cut is not None and when == cut and ALT_SCREEN_EXIT in data:
+            # The exit shares its write with whatever the app flushed just
+            # before it; that part is still the app's last frame.
+            data = data[:data.index(ALT_SCREEN_EXIT)]
+            if not data:
+                dropped += 1
+                continue
         moved = head_at if when < head else squeeze(when)
         kept.append(json.dumps([round(max(moved - head_at, 0.0), 6), kind, data]))
     cast.write_text("\n".join(kept) + "\n")
@@ -1187,7 +1236,7 @@ def cmd_beats(spec: Spec, args) -> int:
     video = spec.video
     print(f"{video.get('title', spec.path.stem)} — "
           f"{video.get('cols', 140)}x{video.get('rows', 36)} at {video.get('speed', 1.0)}x "
-          f"→ {video.get('out', '(no output)')}")
+          f"→ {video.get('out') or f'{spec.gif} (beside the cast)'}")
     print()
     step = 0
     for beat in spec.beats:
@@ -1230,6 +1279,14 @@ def cmd_validate(spec: Spec, args) -> int:
                 warn(f"beat {index} ({label}): no `expect` — a miss here would be silent")
         if action == "wait" and "until" not in beat:
             problems.append(f"beat {index} ({label}): wait has no `until`")
+    for entry in spec.video.get("publish", []):
+        source = entry.get("from", "out")
+        if source not in PUBLISHABLE:
+            problems.append(f"publish from {source!r}: not one of {', '.join(PUBLISHABLE)}")
+        elif source == "poster" and not spec.video.get("poster"):
+            problems.append("publish from 'poster', but [video] declares no poster")
+        if not entry.get("to"):
+            problems.append(f"publish from {source!r} has no `to`")
     names = [fixture.get("name") for fixture in spec.fixtures]
     for name in sorted({name for name in names if names.count(name) > 1}):
         problems.append(f"fixture {name!r} is defined more than once — "

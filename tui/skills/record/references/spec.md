@@ -23,7 +23,8 @@ A directory argument finds `demo.yml`, `demo.yaml` or `demo.toml` inside it.
 | Key | Meaning |
 |---|---|
 | `title` | Recorded into the cast header |
-| `out` | The rendered GIF, relative to the project root |
+| `out` | The rendered GIF, relative to the project root. Rendered on every take — it is how a take is reviewed — and beside the cast (`<cast>.gif`) when left out |
+| `publish` | What is copied where once the leak scan passes: a list of `{from, to}`, `from` one of `cast` (the cut take, never the `.raw.cast`), `out` (the GIF, the default) or `poster`; `to` is relative to the project root. A site plays the `cast` with asciinema-player — text stays sharp, the file is small; the GIF is for places with no JavaScript (a GitHub README, social previews, release notes) |
 | `poster` | A still, for a site that shows one before playing |
 | `poster_when` | What must be on screen in that still — a regex, matched against the cast. Survives a re-cut; `poster_at` (seconds) does not |
 | `cast` | Where the take is kept. `.raw.cast` beside it is the negative |

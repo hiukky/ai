@@ -28,8 +28,13 @@ The cut (inside `run` and `recut`) rewrites timestamps only:
   waiting, rescaled to the spec's `wait_collapse` seconds (default 1.5).
 - Everything before `driver_start` is app startup, collapsed to a single
   instant so the video opens on the app already running.
-- Everything after the `end` beat is cut, and so is the app's own exit
-  (`[?1049l`) — that write is the one that blanks the screen.
+- The video stops at the app's own exit (`[?1049l`, leaving the alternate
+  screen — the write that blanks it), and that write and everything after
+  it are cut. The exit is looked for in the cast, after the `end` beat's
+  `driver_end` mark: marks are the driver's wall clock, and under load the
+  cast runs seconds behind it, so a cut at the mark itself drops the last
+  beats' output. The mark is the stop only when the app never leaves the
+  alternate screen.
 
 **It never deletes an event before the end, and neither should anything you
 write.** Dropping the startup events removes the first full paint; the
@@ -81,7 +86,7 @@ ffmpeg -loglevel error -i corner.png -vf "crop=4:4:0:0" -f rawvideo -pix_fmt rgb
 |---|---|---|
 | GIF | README, anywhere an image tag is all you get | ~0.5-1MB for 30-40s at 140x36 |
 | mp4/webm | Docs sites, landing pages | Smaller and smoother; needs a video tag |
-| `.cast` + asciinema player | Docs where readers may want to copy text | Smallest; text stays selectable |
+| `.cast` + asciinema player | Any site that runs JavaScript — the default for one (`publish: [{from: cast, ...}]`) | Smallest; text stays sharp and selectable |
 | asciinema.org link | Sharing a repro quickly | Public unless you configure otherwise |
 
 For mp4 from the same cast: render a GIF and convert

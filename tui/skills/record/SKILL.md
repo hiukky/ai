@@ -125,9 +125,13 @@ and the beat after it then opens an empty panel.
 the startup events removes the terminal's first full paint, and the player
 draws the rest onto a blank screen — panels missing that the live app clearly
 draws, which reads as an app bug and sends you debugging the wrong thing.
-Trailing events are the exception: the `end` beat marks where the video
-stops, so the app's own exit — the write that blanks the screen — never
-reaches it. A GIF loops, and a blank final frame shows at *both* ends.
+Trailing events are the exception: the video stops at the app's own exit
+(`[?1049l`, leaving the alternate screen — the write that blanks it), found
+in the cast after the `end` beat's mark, so that write never reaches the
+video. A GIF loops, and a blank final frame shows at *both* ends. The mark
+alone is not the stop: under load the cast runs seconds behind the driver's
+clock, and a cut at the mark loses the last beats. It is the fallback only
+for an app that never leaves the alternate screen.
 
 ## 5. Render to match the app
 
@@ -145,6 +149,23 @@ file is too heavy for where it embeds, cut beats before cutting quality.
 Point `poster_when` at what has to be on screen rather than `poster_at` at a
 second: a re-cut moves every timestamp, and a poster pinned to a number
 silently becomes a half-drawn frame.
+
+Every take renders a GIF (`out`, or beside the cast) — it is how the take is
+reviewed, whatever ends up published. What leaves is declared in `publish`,
+each entry `from` the cut `cast`, the GIF (`out`) or the `poster`, copied
+`to` a path. For a site, publish the **cast** and play it with
+asciinema-player: the text stays sharp at any zoom and the file is a
+fraction of the GIF's. The GIF is for places that run no JavaScript — a
+GitHub README, a social preview, release notes.
+
+```yaml
+video:
+  cast: '{root}/demo.cast'
+  out: .demo/demo.gif            # rendered every take; the take's proof
+  publish:
+    - from: cast
+      to: web/public/demo.cast
+```
 
 ## 6. Publishing is gated, not advised
 
