@@ -34,6 +34,7 @@ import time
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NoReturn
 
 
 def say(message: str) -> None:
@@ -44,7 +45,7 @@ def warn(message: str) -> None:
     print(f"\033[38;5;179m!\033[0m {message}", file=sys.stderr)
 
 
-def die(message: str, code: int = 1):
+def die(message: str, code: int = 1) -> NoReturn:
     print(f"tui-record: {message}", file=sys.stderr)
     raise SystemExit(code)
 
@@ -285,7 +286,7 @@ def include_fixtures(entries: list, origin: Path, stack: tuple, sources: list) -
                 + " → ".join(str(step) for step in (*stack, target)))
         if not target.is_file():
             die(f"{origin}: includes {entry['include']}, and there is nothing at {target}")
-        loaded = parse_spec(target)
+        loaded: object = parse_spec(target)
         if isinstance(loaded, dict):
             loaded = ([loaded] if "name" in loaded
                       else loaded.get("fixtures") or loaded.get("fixture"))
@@ -1025,7 +1026,7 @@ LEAK_PATTERNS = [
 ]
 
 
-def leaks(cast: Path, extra: list, allowed: list = ()) -> bool:
+def leaks(cast: Path, extra: list, allowed: list | tuple = ()) -> bool:
     """Not advisory: a video is published, and a terminal shows more of a home
     directory than anyone means to share.
 
@@ -1210,7 +1211,8 @@ def cmd_probe(spec: Spec, args) -> int:
     screen = Screen(session, sidebar=int(spec.video.get("sidebar", 31)))
     if args.stop:
         subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
-        return say("probe stopped") or 0
+        say("probe stopped")
+        return 0
     if not screen.alive():
         if args.screen or args.find:
             die(f"no probe running — start one: tui-record probe {spec.path}")

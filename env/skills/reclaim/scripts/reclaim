@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any, NoReturn
 
 HOME = Path.home()
 
@@ -40,7 +41,7 @@ def warn(message: str) -> None:
     print(f"\033[38;5;179m!\033[0m {message}", file=sys.stderr)
 
 
-def die(message: str, code: int = 1):
+def die(message: str, code: int = 1) -> NoReturn:
     print(f"reclaim: {message}", file=sys.stderr)
     raise SystemExit(code)
 
@@ -165,7 +166,7 @@ def start_host(folders: bool) -> subprocess.Popen | None:
     proc = subprocess.Popen([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", winpath],
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL, text=True, env=env, cwd="/")
-    proc.script = name
+    proc.script = name  # type: ignore[attr-defined]  # carried to finish_host, which deletes it
     return proc
 
 
@@ -173,7 +174,7 @@ def finish_host(proc: subprocess.Popen | None) -> dict:
     if proc is None:
         return {}
     out, _ = proc.communicate()
-    Path(proc.script).unlink(missing_ok=True)
+    Path(proc.script).unlink(missing_ok=True)  # type: ignore[attr-defined]
     try:
         data = json.loads(out.strip().lstrip("\ufeff") or "{}")
     except json.JSONDecodeError:
@@ -221,7 +222,7 @@ def filesystems() -> list[dict]:
 def home_top(top: int) -> list[dict]:
     out = subprocess.run(["du", "-xB1", "--max-depth=1", str(HOME)],
                          capture_output=True, text=True).stdout
-    rows = []
+    rows: list[dict[str, Any]] = []
     for line in out.splitlines():
         size, _, path = line.partition("\t")
         if size.isdigit() and path != str(HOME):
@@ -248,11 +249,12 @@ def repos() -> list[Path]:
 
 
 def worktrees() -> list[dict]:
-    rows = []
+    rows: list[dict[str, Any]] = []
     for repo in repos():
         base = default_branch(repo)
         listing = run(["git", "-C", str(repo), "worktree", "list", "--porcelain"])
-        entries, current = [], {}
+        entries: list[dict[str, Any]] = []
+        current: dict[str, Any] = {}
         for line in listing.splitlines() + [""]:
             if not line:
                 if current:
@@ -295,7 +297,7 @@ def build_dirs() -> list[dict]:
             continue
         found.append(path)
     sizes = du(found)
-    rows = [{"path": str(p), "kind": "cargo" if p.name == "target" else "node",
+    rows: list[dict[str, Any]] = [{"path": str(p), "kind": "cargo" if p.name == "target" else "node",
              "bytes": sizes.get(str(p), 0)} for p in found]
     return sorted([r for r in rows if r["bytes"] > 0], key=lambda r: -r["bytes"])
 
@@ -335,7 +337,7 @@ CACHES = [
 
 
 def caches() -> list[dict]:
-    rows = []
+    rows: list[dict[str, Any]] = []
     for name, binary, where, clean, kind, note in CACHES:
         path = binary and tool(binary)
         if binary and not path:
