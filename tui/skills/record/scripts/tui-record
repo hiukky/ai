@@ -1125,7 +1125,8 @@ def leaks(cast: Path, extra: list, allowed: list | tuple = ()) -> bool:
         ("username", re.escape(os.environ.get("USER", "\0"))),
         ("home", re.escape(str(Path.home()))),
         ("hostname", re.escape(os.uname().nodename)),
-    ] + LEAK_PATTERNS
+        *LEAK_PATTERNS,
+    ]
     patterns += [(f"forbid {pattern}", pattern) for pattern in extra]
     found, excused = False, 0
     for label, pattern in patterns:
@@ -1588,4 +1589,4 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        raise SystemExit(130)
+        raise SystemExit(130) from None

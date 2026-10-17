@@ -237,16 +237,14 @@ def filesystems() -> list[dict]:
         parts = line.split()
         if len(parts) < 6:
             continue
-        source, fstype, size, used, avail, target = (
+        _source, fstype, size, used, avail, target = (
             parts[0],
             parts[1],
             *parts[2:5],
             " ".join(parts[5:]),
         )
-        if (
-            target == "/"
-            or fstype in ("9p", "drvfs", "v9fs")
-            and re.fullmatch(r"/mnt/[a-z]", target)
+        if target == "/" or (
+            fstype in ("9p", "drvfs", "v9fs") and re.fullmatch(r"/mnt/[a-z]", target)
         ):
             rows.append(
                 {
@@ -315,7 +313,7 @@ def worktrees() -> list[dict]:
         listing = run(["git", "-C", str(repo), "worktree", "list", "--porcelain"])
         entries: list[dict[str, Any]] = []
         current: dict[str, Any] = {}
-        for line in listing.splitlines() + [""]:
+        for line in [*listing.splitlines(), ""]:
             if not line:
                 if current:
                     entries.append(current)
