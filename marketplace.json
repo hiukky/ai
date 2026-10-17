@@ -8,22 +8,22 @@
     {
       "name": "openspec",
       "source": "./openspec",
-      "category": "development"
+      "category": "planning"
     },
     {
       "name": "git",
       "source": "./git",
-      "category": "development"
+      "category": "workflow"
     },
     {
       "name": "tui",
       "source": "./tui",
-      "category": "development"
+      "category": "media"
     },
     {
       "name": "env",
       "source": "./env",
-      "category": "development"
+      "category": "environment"
     },
     {
       "name": "code",
