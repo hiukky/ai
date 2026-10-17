@@ -892,7 +892,7 @@ def publish(spec: Spec, produced: dict) -> None:
 
 
 def cast_lines(cast: Path) -> list[str]:
-    return cast.read_text(errors="replace").splitlines()
+    return cast.read_text(encoding="utf-8", errors="replace").splitlines()
 
 
 def cast_duration(cast: Path) -> float:
@@ -1002,8 +1002,12 @@ def compress(cast: Path, marks_file: Path, span_target: float) -> None:
                 dropped += 1
                 continue
         moved = head_at if when < head else squeeze(when)
-        kept.append(json.dumps([round(max(moved - head_at, 0.0), 6), kind, data]))
-    cast.write_text("\n".join(kept) + "\n")
+        # Raw UTF-8, as asciinema itself writes it: the cut cast is what a
+        # site downloads, and `\uXXXX` escapes for every box-drawing glyph
+        # make it larger than the raw take it was cut from.
+        kept.append(json.dumps([round(max(moved - head_at, 0.0), 6), kind, data],
+                               ensure_ascii=False))
+    cast.write_text("\n".join(kept) + "\n", encoding="utf-8")
 
     for start, end in spans:
         say(f"wait of {end - start:.1f}s → {min(end - start, span_target):.1f}s")
@@ -1340,13 +1344,13 @@ def need(*tools: str) -> None:
 
 def cmd_redact(args) -> int:
     cast = Path(args.cast)
-    text = cast.read_text(errors="replace")
+    text = cast.read_text(encoding="utf-8", errors="replace")
     for pattern in args.pattern:
         # Same length, so nothing on screen reflows: a shorter replacement
         # moves every glyph after it on that row.
         text, count = re.subn(pattern, lambda match: "x" * len(match.group(0)), text)
         say(f"{pattern}: {count} substitution(s)")
-    cast.write_text(text)
+    cast.write_text(text, encoding="utf-8")
     return 0
 
 
