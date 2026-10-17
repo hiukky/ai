@@ -17,7 +17,7 @@
         "autonomous",
         "unattended"
       ],
-      "category": "development",
+      "category": "planning",
       "icon": "FileCheck",
       "skills": [
         {
@@ -57,7 +57,7 @@
             "model": false,
             "user": true
           },
-          "compatibility": "The `openspec` CLI on PATH (npm `@fission-ai/openspec`), bash and python3. Writes into the current project; run it from the project root.",
+          "compatibility": "The `openspec` CLI on PATH (npm `@fission-ai/openspec`) and python3, on Linux, macOS or Windows. Writes into the current project; run it from the project root.",
           "references": [],
           "scripts": [
             "openspec-init"
@@ -91,7 +91,7 @@
         "conventional-commits",
         "workflow"
       ],
-      "category": "development",
+      "category": "workflow",
       "icon": "GitBranch",
       "skills": [
         {
@@ -143,7 +143,7 @@
         "recording",
         "documentation"
       ],
-      "category": "development",
+      "category": "media",
       "icon": "Clapperboard",
       "skills": [
         {
@@ -189,7 +189,7 @@
         "docker",
         "vhdx"
       ],
-      "category": "development",
+      "category": "environment",
       "icon": "MonitorCog",
       "skills": [
         {
