@@ -35,13 +35,16 @@ Consequences worth knowing before editing:
   the filesystem, which is what keeps `web/` from tracing the whole repo into
   its output.
 
-## Colour
+## Colour and type
 
-Every colour is indirected through a `--p-*` variable. The four palettes
-(`amber`, `periwinkle`, `terracotta`, `violet`) all ship in `app/palettes.css`;
-`lib/palette.ts` picks the one the site ships with, and `?palette=<name>` on any
-URL overrides it for a visit (`?palette=` clears). No component names a hex
-value. If you find yourself writing one, add a token instead.
+Monochrome glass: no hue anywhere. Every colour is a `--p-*` token at the top
+of `app/global.css` (light on `:root`, dark on `.dark`); a narrowed policy or a
+primary action is an inversion of ink and paper, never a colour. Depth is the
+`.ai-glass` panel over the hero's light field (`.ai-field`), not shadows. No
+component names a hex value. If you find yourself writing one, add a token.
+
+Inter carries all reading text; JetBrains Mono only what a person would type
+(commands, paths, skill identifiers). Both come from `next/font/google`.
 
 ## Docs pages
 

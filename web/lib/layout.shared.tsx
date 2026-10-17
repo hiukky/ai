@@ -1,4 +1,5 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
+import { ArrowUpRight } from 'lucide-react';
 import { Sparkle } from '@/components/sparkle';
 import { appName, repoUrl, uze } from './shared';
 
@@ -14,11 +15,10 @@ export function UzeLink({ className = '' }: { className?: string }) {
       href={uze.url}
       target="_blank"
       rel="noreferrer"
-      className={`inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-mono text-xs text-ink transition-colors hover:border-accent hover:text-accent ${className}`}
+      className={`ai-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-ink transition-colors hover:border-ink/30 ${className}`}
     >
-      <span className="size-1.5 bg-accent" aria-hidden />
-      {uze.name}
-      <span aria-hidden>&#8599;</span>
+      Get {uze.name}
+      <ArrowUpRight className="size-3 text-muted" aria-hidden />
     </a>
   );
 }
@@ -27,10 +27,10 @@ export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
       title: (
-        <span className="inline-flex items-baseline gap-2 font-mono font-semibold tracking-tight text-fd-foreground">
-          <Sparkle className="size-3.5 self-center text-accent" />
+        <span className="inline-flex items-center gap-2 text-[15px] font-semibold tracking-[-0.02em] text-fd-foreground">
+          <Sparkle className="size-4" />
           {appName}
-          <span className="text-[11px] font-normal text-fd-muted-foreground">marketplace</span>
+          <span className="font-normal text-fd-muted-foreground">marketplace</span>
         </span>
       ),
     },

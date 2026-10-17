@@ -4,51 +4,172 @@
 @plugin 'tailwind-scrollbar';
 
 /*
-  ai: one accent on a near-neutral ground, structure from hairline dividers
-  rather than filled panels. Deliberately not uze's sage green: this is a
-  marketplace that sits *on top of* uze, and reading as a second surface of the
-  same product would be a lie about what it is.
+  ai: monochrome glass. No hue anywhere: hierarchy comes from contrast, weight
+  and translucency, and the one signal a page needs (a narrowed invocation
+  policy, the primary action) is an inversion of ink and paper rather than a
+  colour. Depth is frosted panels over a soft grey light field, never a drop
+  shadow under every box.
 
-  Every colour below is indirected through a `--p-*` variable, and the four
-  palettes are all shipped. Switching is one constant (lib/palette.ts), or
-  `?palette=<name>` on any URL, which is how you compare them without a build.
-  Adding a fifth is one pair of blocks in palettes.css and one entry in that
-  file's `palettes` list.
+  Every colour is a `--p-*` token here. No component names a hex value; if one
+  needs to, add a token.
+
+    paper      the page ground
+    ink        body text, and the fill of anything that must read as solid
+    muted      secondary text; must stay legible on `paper`, not decorative
+    faint      tertiary text and idle marks
+    line       hairlines and panel borders
+    glass      the translucent fill of a frosted panel
+    highlight  the 1px light along a panel's top edge, what sells the glass
+    glow       the colour of the light field behind the hero
+    content    the reading ground of a docs page: a step lighter than
+               `paper`, which the docs keep for their menus
+    panel      a solid raised fill, for code blocks and docs chrome that must
+               stay legible rather than translucent
 */
-@import './palettes.css';
+:root {
+  --p-paper: #f5f5f6;
+  --p-ink: #09090a;
+  --p-muted: #5d5d66;
+  --p-faint: #9a9aa3;
+  --p-line: rgb(9 9 10 / 0.09);
+  --p-glass: rgb(255 255 255 / 0.62);
+  --p-highlight: rgb(255 255 255 / 0.9);
+  --p-glow: rgb(9 9 10 / 0.07);
+  --p-content: #fff;
+  --p-panel: #fafafa;
+}
+.dark {
+  --p-paper: #000;
+  --p-ink: #f4f4f5;
+  --p-muted: #9b9ba4;
+  --p-faint: #5e5e66;
+  --p-line: rgb(255 255 255 / 0.09);
+  --p-glass: rgb(255 255 255 / 0.035);
+  --p-highlight: rgb(255 255 255 / 0.08);
+  --p-glow: rgb(255 255 255 / 0.11);
+  --p-content: #0c0c0d;
+  --p-panel: #121214;
+}
 
 @theme {
-  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-ui-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-paper: var(--p-paper);
   --color-ink: var(--p-ink);
   --color-muted: var(--p-muted);
+  --color-faint: var(--p-faint);
   --color-line: var(--p-line);
-  --color-surface: var(--p-surface);
-  --color-accent: var(--p-accent);
+  --color-glass: var(--p-glass);
+}
 
+/*
+  Fumadocs' default colours set `.dark` overrides of their own, which beat
+  anything in `@theme` (that only writes `:root`). Mapping them here, after the
+  import and on both selectors, is what makes the docs chrome sit on the same
+  ground as the rest of the site.
+*/
+:root,
+.dark {
   --color-fd-background: var(--color-paper);
   --color-fd-foreground: var(--color-ink);
-  --color-fd-muted: var(--color-surface);
+  --color-fd-muted: var(--p-panel);
   --color-fd-muted-foreground: var(--color-muted);
   --color-fd-popover: var(--color-paper);
   --color-fd-popover-foreground: var(--color-ink);
-  --color-fd-card: var(--color-surface);
+  --color-fd-card: var(--p-panel);
   --color-fd-card-foreground: var(--color-ink);
   --color-fd-border: var(--color-line);
-  --color-fd-primary: var(--color-accent);
+  --color-fd-primary: var(--color-ink);
   --color-fd-primary-foreground: var(--color-paper);
-  --color-fd-secondary: var(--color-surface);
+  --color-fd-secondary: var(--p-panel);
   --color-fd-secondary-foreground: var(--color-ink);
-  --color-fd-accent: var(--color-surface);
+  --color-fd-accent: color-mix(in oklab, var(--p-ink) 6%, transparent);
   --color-fd-accent-foreground: var(--color-ink);
-  --color-fd-ring: var(--color-accent);
-  --color-fd-overlay: hsla(0, 0%, 0%, 0.2);
+  --color-fd-ring: var(--color-ink);
+  --color-fd-overlay: hsla(0, 0%, 0%, 0.3);
+}
+
+/*
+  Docs: the page a person reads sits on the lighter `content` ground, and the
+  menus around it (sidebar, mobile nav) on the darker `paper`, so the text is
+  the brightest thing on screen.
+*/
+#nd-docs-layout {
+  --color-fd-background: var(--p-content);
+  background-color: var(--p-content);
+}
+#nd-sidebar,
+#nd-sidebar-mobile,
+#nd-subnav {
+  background-color: var(--p-paper);
+}
+
+/*
+  Sidebar. Quieter than Fumadocs' default: section titles are small muted
+  labels rather than a second, bolder kind of link; links are compact; the
+  current page is a soft ink pill and nothing else (the default also draws a
+  1px bar inside the pill and a tree line beside it, which read as a glitch
+  at this contrast).
+*/
+#nd-sidebar p {
+  margin-top: 1.5rem;
+  margin-bottom: 0.25rem;
+  padding-inline: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--p-faint);
+}
+#nd-sidebar p:first-child {
+  margin-top: 0;
+}
+#nd-sidebar p svg {
+  display: none;
+}
+#nd-sidebar a[data-active],
+#nd-sidebar button[aria-expanded] {
+  padding: 0.4375rem 0.625rem;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+}
+#nd-sidebar a[data-active] svg,
+#nd-sidebar button[aria-expanded] svg {
+  color: var(--p-faint);
+  transition: color 150ms ease;
+}
+#nd-sidebar a[data-active]:hover svg,
+#nd-sidebar a[data-active='true'] svg {
+  color: var(--p-ink);
+}
+#nd-sidebar a[data-active='true'] {
+  background-color: color-mix(in oklab, var(--p-ink) 7%, transparent);
+  color: var(--p-ink);
+  font-weight: 500;
+}
+#nd-sidebar a[data-active='true']::before,
+#nd-sidebar div.overflow-hidden::before {
+  display: none;
+}
+
+/* A sidebar folder clips its children (it animates its height), so a focus
+   ring drawn outside a link is cut off. Draw it inside instead, and only for
+   keyboard focus. */
+#nd-sidebar a:focus,
+#nd-sidebar button:focus {
+  outline: none;
+}
+#nd-sidebar a:focus-visible,
+#nd-sidebar button:focus-visible {
+  outline: 1.5px solid color-mix(in oklab, var(--p-ink) 45%, transparent);
+  outline-offset: -1.5px;
 }
 
 html {
   scrollbar-gutter: stable;
+  /* Inter's single-storey a and open digits read cleaner at UI sizes; the
+     disambiguated l/I matters on a page full of plugin and skill names. */
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
 }
 
 html > body[data-scroll-locked] {
@@ -56,75 +177,119 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
-/*
-  The install line is the one thing on the landing page that must be found
-  before anything is read, so it gets the page's only piece of depth: a soft
-  accent bloom that lifts it off the ground without a filled slab.
-*/
-.ai-bloom {
-  position: relative;
-  /* Without a stacking context of its own, the `z-index: -1` below paints the
-     bloom behind <body>'s background rather than behind the command line, and
-     nothing shows. */
-  isolation: isolate;
+/* Display type: Inter wants negative tracking as it grows. */
+.ai-display {
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+  font-weight: 600;
 }
-.ai-bloom::before {
+.ai-title {
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+/*
+  A frosted panel. Translucent fill, blur of whatever sits behind, and a 1px
+  highlight on the top edge; that edge is what makes it read as glass rather
+  than as a grey box.
+*/
+.ai-glass {
+  background-color: var(--p-glass);
+  border: 1px solid var(--p-line);
+  box-shadow: inset 0 1px 0 var(--p-highlight);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+/*
+  The light field behind the hero: two soft grey lights and a dot grid that
+  fades out from the centre. It is the page's one piece of motion, a drift slow
+  enough to read as light rather than animation, and it stops for anyone who
+  asked for reduced motion.
+*/
+.ai-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.ai-field::before {
   content: '';
   position: absolute;
-  inset: -60% -12%;
-  z-index: -1;
-  background: radial-gradient(50% 50% at 50% 50%, var(--color-accent), transparent 70%);
-  opacity: 0.12;
-  filter: blur(56px);
-  pointer-events: none;
+  inset: 0;
+  background-image: radial-gradient(var(--p-line) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(60% 55% at 50% 42%, #000 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(60% 55% at 50% 42%, #000 20%, transparent 75%);
 }
-.dark .ai-bloom::before {
-  opacity: 0.16;
+.ai-light {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, var(--p-glow), transparent);
+  filter: blur(40px);
+}
+.ai-light-a {
+  width: 46rem;
+  height: 32rem;
+  left: calc(50% - 30rem);
+  top: 8%;
+  animation: ai-drift 22s ease-in-out infinite alternate;
+}
+.ai-light-b {
+  width: 38rem;
+  height: 28rem;
+  left: calc(50% - 4rem);
+  top: 26%;
+  animation: ai-drift 28s ease-in-out infinite alternate-reverse;
+}
+@keyframes ai-drift {
+  from {
+    transform: translate3d(-3rem, -1rem, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3rem, 2rem, 0) scale(1.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-light {
+    animation: none;
+  }
 }
 
 /*
-  Cards. A hairline that warms to the accent is the whole interaction. No lift,
-  no shadow, nothing that moves the grid.
-
-  The card reads as clickable, so it has to be clickable, and across its whole
-  area rather than only on the title. An anchor cannot wrap the card because the
-  card contains its own links, so the title's anchor is stretched over the card
-  instead (`.ai-card-target`) and the inner links are lifted above it
+  Cards. The whole card is clickable, but it contains links of its own, so an
+  anchor cannot wrap it: the title's anchor is stretched over the card instead
+  (`.ai-card-target`) and the inner links and buttons are lifted above it
   (`.ai-card-link`). One anchor per card, so the accessible name stays the
   title and nothing is announced twice.
 */
 .ai-card {
   position: relative;
-  border: 1px solid var(--color-line);
   transition:
-    border-color 150ms ease,
-    background-color 150ms ease;
+    border-color 200ms ease,
+    background-color 200ms ease;
 }
 .ai-card:hover,
 .ai-card:focus-within {
-  border-color: color-mix(in oklab, var(--color-accent) 55%, transparent);
-  background-color: color-mix(in oklab, var(--color-accent) 4%, transparent);
+  border-color: color-mix(in oklab, var(--p-ink) 22%, transparent);
+  background-color: color-mix(in oklab, var(--p-glass), var(--p-ink) 3%);
 }
 .ai-card-target::after {
   content: '';
   position: absolute;
   inset: 0;
-  /* Above the card's own text, below anything marked .ai-card-link. */
+  border-radius: inherit;
   z-index: 0;
+}
+.ai-card-target:focus-visible {
+  outline: none;
+}
+.ai-card:has(.ai-card-target:focus-visible) {
+  outline: 2px solid var(--p-ink);
+  outline-offset: 3px;
 }
 .ai-card-link {
   position: relative;
   z-index: 1;
-}
-
-/* The dotted rule that separates a pipeline's steps from its result. */
-.ai-rule-dotted {
-  background-image: linear-gradient(
-    to right,
-    var(--color-line) 0 3px,
-    transparent 3px 7px
-  );
-  background-size: 7px 1px;
-  background-repeat: repeat-x;
-  height: 1px;
 }

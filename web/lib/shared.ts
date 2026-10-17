@@ -1,4 +1,4 @@
-export const appName = 'ai';
+export const appName = 'AI';
 export const appTagline = 'Personal AI tooling. Portable by default.';
 export const appDescription =
   'Plugins for coding agents: an engineering standard, git conventions, terminal demos, dotfiles. Your agent reaches for them on its own.';

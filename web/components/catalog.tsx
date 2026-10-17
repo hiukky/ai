@@ -23,14 +23,14 @@ export function PluginIcon({ plugin, className }: { plugin: Plugin; className?: 
 
 export function InvokeBadge({ skill }: { skill: Skill }) {
   const label = invokeLabel(skill.invoke);
-  // `model + user` is the default and the common case, so it is stated plainly.
-  // A narrowed policy is the thing worth noticing, and gets the accent.
+  // `model + user` is the default and the common case, so it is stated
+  // quietly. A narrowed policy is the thing worth noticing: the dot fills.
   const narrowed = label !== 'model + user';
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-[11px] ${
-        narrowed ? 'text-accent' : 'text-muted'
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${
+        narrowed ? 'border-ink/25 text-ink' : 'border-line text-muted'
       }`}
       title={
         narrowed
@@ -38,12 +38,21 @@ export function InvokeBadge({ skill }: { skill: Skill }) {
           : 'the default: the agent discovers it, and a person can call it by name'
       }
     >
-      <span
-        className={`size-1.5 shrink-0 ${narrowed ? 'bg-accent' : 'bg-muted/60'}`}
-        aria-hidden
-      />
+      <PolicyDot narrowed={narrowed} />
       {label}
     </span>
+  );
+}
+
+/** Hollow for the default policy, filled for a narrowed one. */
+export function PolicyDot({ narrowed }: { narrowed: boolean }) {
+  return (
+    <span
+      className={`size-1.5 shrink-0 rounded-full ${
+        narrowed ? 'bg-ink' : 'border border-faint'
+      }`}
+      aria-hidden
+    />
   );
 }
 
@@ -56,18 +65,18 @@ export function SkillTable({ plugin }: { plugin?: string }) {
       <table className="w-full min-w-[36rem] border-collapse text-left">
         <thead>
           <tr className="border-b border-line">
-            <th className="py-3 pe-4 font-mono text-xs font-normal text-muted">Skill</th>
-            <th className="px-3 py-3 font-mono text-xs font-normal text-muted">Invoked by</th>
-            <th className="ps-3 py-3 font-mono text-xs font-normal text-muted">What it does</th>
+            <th className="py-3 pe-4 text-xs font-medium text-muted">Skill</th>
+            <th className="px-3 py-3 text-xs font-medium text-muted">Invoked by</th>
+            <th className="ps-3 py-3 text-xs font-medium text-muted">What it does</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((skill) => (
-            <tr key={skill.path} className="border-b border-line/70 align-top">
+            <tr key={skill.path} className="border-b border-line align-top">
               <th scope="row" className="py-4 pe-4 font-normal">
                 <Link
                   href={`/docs/plugins/${skill.plugin}#${skill.id}`}
-                  className="font-mono text-sm font-semibold whitespace-nowrap text-ink hover:text-accent transition-colors"
+                  className="font-mono text-[13px] font-medium whitespace-nowrap text-ink underline-offset-4 hover:underline"
                 >
                   {plugin ? skill.name : `${skill.plugin}:${skill.name}`}
                 </Link>
@@ -86,47 +95,52 @@ export function SkillTable({ plugin }: { plugin?: string }) {
   );
 }
 
-export function PluginCard({ plugin }: { plugin: Plugin }) {
+export function PluginCard({ plugin, className = '' }: { plugin: Plugin; className?: string }) {
   return (
-    <li className="ai-card group flex flex-col p-6">
-      <div className="flex items-center justify-between gap-4">
-        <h3 className="inline-flex items-center gap-2.5 font-mono text-base font-semibold text-ink">
-          <PluginIcon plugin={plugin} className="size-4 shrink-0 text-accent" />
-          {/* Stretched over the whole card, see .ai-card-target in global.css. */}
-          <Link
-            href={`/docs/plugins/${plugin.name}`}
-            className="ai-card-target transition-colors group-hover:text-accent"
-          >
-            {plugin.name}
-          </Link>
-        </h3>
-        <span className="font-mono text-[11px] text-muted">
+    <li className={`ai-glass ai-card group flex flex-col rounded-[20px] p-6 ${className}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="ai-glass grid size-10 shrink-0 place-items-center rounded-xl">
+          <PluginIcon plugin={plugin} className="size-[18px] text-ink" />
+        </div>
+        <span className="text-xs text-faint tabular-nums">
           {plugin.skills.length} {plugin.skills.length === 1 ? 'skill' : 'skills'}
         </span>
       </div>
 
-      <p className="mt-2.5 flex-1 text-sm leading-relaxed text-muted">
+      <h3 className="ai-title mt-5 text-lg text-ink">
+        {/* Stretched over the whole card, see .ai-card-target in global.css. */}
+        <Link href={`/docs/plugins/${plugin.name}`} className="ai-card-target">
+          {plugin.name}
+        </Link>
+      </h3>
+
+      <p className="mt-2 flex-1 text-sm leading-relaxed text-muted">
         {summarize(plugin.description)}
       </p>
 
-      <ul className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5">
-        {plugin.skills.map((skill) => (
-          <li key={skill.id} className="font-mono text-xs text-ink">
-            {/* Lifted above the stretched anchor so a skill still deep-links. */}
-            <Link
-              href={`/docs/plugins/${plugin.name}#${skill.id}`}
-              className="ai-card-link transition-colors hover:text-accent"
-            >
-              {skill.name}
-            </Link>
-            {skill.invoke.model && skill.invoke.user ? null : (
-              <span className="ms-1 text-accent" title={invokeLabel(skill.invoke)}>
-                *
-              </span>
-            )}
-          </li>
-        ))}
+      <ul className="mt-5 flex flex-wrap gap-1.5">
+        {plugin.skills.map((skill) => {
+          const narrowed = !(skill.invoke.model && skill.invoke.user);
+          return (
+            <li key={skill.id}>
+              {/* Lifted above the stretched anchor so a skill still deep-links. */}
+              <Link
+                href={`/docs/plugins/${plugin.name}#${skill.id}`}
+                title={invokeLabel(skill.invoke)}
+                className="ai-card-link inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-mono text-[11.5px] text-ink transition-colors hover:border-ink/30"
+              >
+                <PolicyDot narrowed={narrowed} />
+                {skill.name}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
+
+      <InstallCommand
+        className="ai-card-link mt-5"
+        command={installCommand.project(plugin.name)}
+      />
     </li>
   );
 }
@@ -148,16 +162,33 @@ export function PluginHeader({ name }: { name: string }) {
 
   return (
     <div className="not-prose my-8 space-y-6">
-      <dl className="grid gap-x-8 gap-y-4 border-y border-line py-5 sm:grid-cols-2">
+      <dl className="ai-glass grid gap-x-8 gap-y-5 rounded-[20px] p-5 sm:grid-cols-2">
         <div>
-          <dt className="font-mono text-[11px] text-muted">Skills</dt>
-          <dd className="mt-1 font-mono text-sm text-ink">
-            {plugin.skills.map((skill) => skill.name).join(' · ')}
+          <dt className="text-xs font-medium text-muted">Skills</dt>
+          <dd className="mt-2 flex flex-wrap gap-1.5">
+            {plugin.skills.map((skill) => (
+              <a
+                key={skill.id}
+                href={`#${skill.id}`}
+                className="rounded-full border border-line px-2.5 py-0.5 font-mono text-xs text-ink transition-colors hover:border-ink/30"
+              >
+                {skill.name}
+              </a>
+            ))}
           </dd>
         </div>
         <div>
-          <dt className="font-mono text-[11px] text-muted">Carries</dt>
-          <dd className="mt-1 font-mono text-sm text-ink">{plugin.carries.join(' · ')}</dd>
+          <dt className="text-xs font-medium text-muted">Carries</dt>
+          <dd className="mt-2 flex flex-wrap gap-1.5">
+            {plugin.carries.map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-line px-2.5 py-0.5 font-mono text-xs text-muted"
+              >
+                {item}
+              </span>
+            ))}
+          </dd>
         </div>
       </dl>
 
@@ -179,8 +210,8 @@ export function PluginSkills({ name }: { name: string }) {
       {plugin.skills.map((skill) => (
         <section key={skill.id} id={skill.id} className="scroll-mt-24">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h3 className="font-mono text-lg font-semibold text-ink">
-              <a href={`#${skill.id}`} className="hover:text-accent transition-colors">
+            <h3 className="ai-title font-mono text-lg text-ink">
+              <a href={`#${skill.id}`} className="underline-offset-4 hover:underline">
                 {skill.name}
               </a>
             </h3>
@@ -190,29 +221,29 @@ export function PluginSkills({ name }: { name: string }) {
           <p className="mt-3 text-sm leading-relaxed text-muted">{skill.description}</p>
 
           {skill.compatibility ? (
-            <p className="mt-3 border-s-2 border-line ps-3 font-mono text-xs leading-relaxed text-muted">
-              <span className="text-ink">Needs: </span>
+            <p className="mt-3 border-s-2 border-line ps-3 text-xs leading-relaxed text-muted">
+              <span className="font-medium text-ink">Needs </span>
               {skill.compatibility}
             </p>
           ) : null}
 
           {skill.scripts.length ? (
             <p className="mt-3 font-mono text-xs text-muted">
-              <span className="text-ink">Scripts: </span>
+              <span className="font-sans font-medium text-ink">Scripts </span>
               {skill.scripts.join(', ')}
             </p>
           ) : null}
 
           {skill.references.length ? (
             <p className="mt-1.5 font-mono text-xs text-muted">
-              <span className="text-ink">References: </span>
+              <span className="font-sans font-medium text-ink">References </span>
               {skill.references.join(', ')}
             </p>
           ) : null}
 
           <a
             href={sourceUrl(`${skill.path}/SKILL.md`)}
-            className="mt-4 inline-block border-b border-accent/50 pb-0.5 font-mono text-xs text-ink transition-colors hover:border-accent hover:text-accent"
+            className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-ink underline decoration-line underline-offset-4 transition-colors hover:decoration-ink"
           >
             Read {skill.name}/SKILL.md
           </a>
@@ -234,9 +265,9 @@ export function PluginResources({ name }: { name: string }) {
         <li key={file}>
           <a
             href={sourceUrl(`${plugin.name}/resources/${file}`)}
-            className="text-muted transition-colors hover:text-accent"
+            className="text-muted transition-colors hover:text-ink"
           >
-            <span className="text-accent">resources/</span>
+            <span className="text-faint">resources/</span>
             {file}
           </a>
         </li>
