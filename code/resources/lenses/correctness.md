@@ -28,9 +28,9 @@ change or of code as it stands.
   separators and case sensitivity, line endings, shell and process
   semantics, file locking, permissions, encodings. Code that only works on
   the author's machine is a finding even if CI runs on one platform.
-- **Assumptions.** Every `unwrap`, assert, cast, index and "this cannot
-  happen" is a claim. Is it proved by the types or the code above it, or
-  only by the inputs the author tried?
+- **Assumptions.** Every forced unwrap or non-null assertion, assert,
+  cast, index and "this cannot happen" is a claim. Is it proved by the
+  types or the code above it, or only by the inputs the author tried?
 
 ## Prove it
 

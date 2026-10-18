@@ -38,8 +38,10 @@ nothing) and `agents/refactor-executor.md` (works a planned Mikado graph,
 starts no subagents). Where a harness did not install them, the skills
 hand the same file to a general-purpose subagent instead.
 
-`$PLUGIN_ROOT` in the skills is the installed plugin's directory; it is
-resolved to an absolute path before anything is handed to a subagent.
+`$PLUGIN_ROOT` in the skills is the installed plugin's directory (the one
+two levels above a skill's `SKILL.md`, where the harness does not expand
+it); it is resolved to an absolute path before anything is handed to a
+subagent.
 
 Language-agnostic by rule: the project's own rules and gate decide what is
 wrong and what green means, and the skills use whatever the project and

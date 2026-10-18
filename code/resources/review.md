@@ -43,9 +43,10 @@ parallel:
 
 ## The brief
 
-`$PLUGIN_ROOT` is the installed plugin's directory. Resolve it, and every
-other placeholder, to absolute paths before handing anything over - a
-subagent cannot resolve them. Hand each reviewer this, filled in, and no
+`$PLUGIN_ROOT` is the installed plugin's directory - where the harness
+does not expand it, the directory two levels above the running skill's
+`SKILL.md`. Resolve it, and every other placeholder, to absolute paths
+before handing anything over - a subagent cannot resolve them. Hand each reviewer this, filled in, and no
 summary of how the code came to be:
 
 ```markdown
