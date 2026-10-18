@@ -106,31 +106,12 @@ cheap; discovering at step 30 that nothing was written down is not.
 
 ## Which decisions are yours
 
-Autonomy is bought with the record: decide, write it down, keep going. What
-you may decide depends on how hard it is to undo.
-
-**Two-way doors - decide and record in one line** (commit body or report):
-names, extracting or inlining, moving code inside a module boundary, the
-order of steps, which of two equivalent shapes to use, which tool performs
-a mechanical change.
-
-**One-way doors - never taken alone mid-run:**
-
-- a persisted format: anything written to disk, a database, a cache key, a
-  wire protocol, a config file a person edits;
-- a public surface: an exported API, a CLI flag or command, an HTTP route,
-  an event name - anything a caller outside this repository may depend on;
-- a new dependency;
-- removing behavior someone could rely on, even behavior that looks
-  accidental;
-- moving a trust boundary - where input is validated, where a privilege is
-  checked;
-- anything the project's own docs say needs approval.
-
-A one-way door is decided **while planning**, with the person, or written
-into the plan as decided. Met unexpectedly mid-run, it is not taken: take
-the path that does not need it, and list it in the report as pending with
-your recommendation.
+Two-way doors are decided and recorded; one-way doors - a persisted
+format, a public surface, a new dependency, removed behavior, a moved trust
+boundary - are not taken alone. The full list is in
+`$PLUGIN_ROOT/resources/doors.md`. In a refactoring every one-way door is
+decided **while planning**, with the person, or written into the plan as
+decided, so the run never meets one it has to leave pending.
 
 ## When to stop - a closed list
 
