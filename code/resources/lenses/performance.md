@@ -1,25 +1,32 @@
 # Lens: performance
 
-No number, no claim. A refactoring may say it improved performance only if
-something was measured before and after; otherwise it says nothing about
-performance, which is fine.
+No number, no claim. Code may be called faster or slower only if something
+was measured; otherwise the report says "not measured", which is fine.
+Reading the code finds *suspects*; a measurement turns one into a finding.
+Asked of a change (compare before and after) or of code as it stands.
 
 ## Ask
 
-- **Hot paths.** Does the change touch code that runs per request, per item,
-  per frame, per keystroke, at startup? Find out from a profile, a
-  benchmark or the project's own docs - not from intuition.
-- **Complexity.** Did a loop gain an inner lookup, a linear scan replace an
-  index, a recursion lose its memo? Extracting a function inside a loop is
-  free; extracting one that re-reads a file is not.
-- **I/O.** Did a call that was batched become one per item? Did a read move
-  inside a loop, or from startup to every call? Did something cached stop
-  being cached because its owner changed?
-- **Allocation and copying.** New clones, conversions, intermediate
-  collections, or a value passed by copy that was passed by reference.
-- **Concurrency.** Did a lock widen, an await serialize what ran in
-  parallel, work move onto a thread that must not block (a UI thread, an
-  event loop)?
+- **Hot paths.** Does the code run per request, per item, per frame, per
+  keystroke, at startup? Find out from a profile, a benchmark or the
+  project's own docs - not from intuition. A suspect off the hot path is
+  rarely worth a step.
+- **Complexity.** A loop with an inner lookup, a linear scan where an index
+  exists, a recursion without its memo, a quadratic built from two
+  innocent-looking linear calls.
+- **I/O.** A call that could be batched made once per item; a read inside a
+  loop, or repeated on every call when it could be done once; a cache
+  bypassed because its owner changed; the same file, process list or
+  network resource read twice for one decision.
+- **Allocation and copying.** Clones, conversions and intermediate
+  collections that nothing needs; a value passed by copy that could be
+  borrowed; strings built in a loop.
+- **Concurrency.** A lock held across I/O or wider than the data it guards,
+  an await that serializes work that could run in parallel, blocking work
+  on a thread that must not block (a UI thread, an event loop).
+- **Leaks.** Anything acquired and not released on every path - file
+  handles, child processes, threads, subscriptions, listeners, caches that
+  only grow.
 - **Startup and size.** A new dependency, an eager import of something lazy,
   a larger binary or bundle.
 
@@ -31,12 +38,9 @@ run several times, before and after, on the same machine, reporting the
 spread and not only the best run. State in the report what was measured
 and how, so the claim can be checked.
 
-A regression found this way in a refactoring is a stop-and-fix inside the
-run: a refactoring was supposed to change nothing, and slower is a change.
-
 ## Don't
 
-- Optimize in a refactoring step. Making it fast is a behavior change of
-  its own, with its own measurement, in its own commit.
+- Optimize code that is not on a hot path because it looks slow.
+- Trade readability for a gain nobody measured.
 - Report "should be faster" or "no performance impact" without a number.
   Say "not measured" instead.

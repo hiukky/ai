@@ -270,9 +270,11 @@
       ],
       "resources": [
         "lenses/architecture.md",
+        "lenses/correctness.md",
         "lenses/performance.md",
         "lenses/quality.md",
-        "lenses/security.md"
+        "lenses/security.md",
+        "lenses/tests.md"
       ],
       "path": "code"
     }

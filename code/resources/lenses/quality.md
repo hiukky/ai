@@ -1,7 +1,9 @@
 # Lens: quality
 
 Whether the next person can read it, change it and trust it. The project's
-own style rules come first; this is for what they leave open.
+own style rules come first; this is for what they leave open. Asked of a
+change or of code as it stands. Tests have a lens of their own - see
+`tests.md`.
 
 ## Ask
 
@@ -17,21 +19,27 @@ own style rules come first; this is for what they leave open.
   - a conditional on a type or mode repeated in several places;
   - duplicated logic that must change together - not merely similar code
     that happens to look alike;
-  - dead code, unused parameters, speculative generality.
+  - speculative generality: parameters, options and extension points with
+    one caller and no second one in sight.
+- **Dead code.** Functions, branches, flags, exports and files nothing
+  reaches - prove it with a search for every spelling, including config,
+  templates and other entry points, before calling it dead. Commented-out
+  code goes; history keeps it.
+- **Workarounds.** Code that treats a symptom instead of the cause:
+  a platform guard or a skipped test hiding a failure instead of fixing it,
+  a sleep or a retry standing in for synchronization, a special case for
+  one input, a catch that swallows the error to make a path "work", a
+  `TODO` that has become permanent. Each is either justified - a comment
+  says what constraint forces it and when it can go - or a finding.
 - **Comments.** Do the remaining ones explain *why* - a constraint, a
   workaround, a non-obvious decision? Comments that restate the code go;
-  comments that went stale with the move are updated or removed.
-- **Errors.** Are failures still reported with the context a reader needs,
-  or did a refactoring swallow an error, widen a catch, or lose the cause?
-- **Tests.** Do they test behavior through the public surface, or did they
-  pin implementation details so tightly that this refactoring had to
-  rewrite them? Tests rewritten in a refactoring are a signal worth
-  reporting: either they were testing the wrong thing, or the refactoring
-  changed behavior.
-- **Consistency.** Does the new code look like the code around it - its
-  idioms, error style, module layout? A refactoring that introduces a
-  second way of doing something the project already does one way has made
-  it worse.
+  comments gone stale are updated or removed.
+- **Errors.** Are failures reported with the context a reader needs? An
+  error swallowed, a catch widened, a cause lost, or a panic where the
+  caller could have handled it, is a finding.
+- **Consistency.** Does the code look like the code around it - its idioms,
+  error style, module layout? A second way of doing something the project
+  already does one way makes it worse, however good the second way is.
 
 ## Don't
 

@@ -98,9 +98,20 @@ cheap; discovering at step 30 that nothing was written down is not.
    - `$PLUGIN_ROOT/resources/lenses/security.md`
    - `$PLUGIN_ROOT/resources/lenses/performance.md`
    - `$PLUGIN_ROOT/resources/lenses/quality.md`
+   - `$PLUGIN_ROOT/resources/lenses/correctness.md`
+   - `$PLUGIN_ROOT/resources/lenses/tests.md`
 
    A finding is either in scope (do it, as its own step) or a discovery
-   (goes in the report). It never quietly widens the run.
+   (goes in the report). It never quietly widens the run. In a refactoring
+   the lenses carry three extra rules, because the run promised to change
+   nothing:
+   - **slower is a change** - a measured performance regression is a
+     stop-and-fix inside the run, and making something faster is never a
+     refactoring step;
+   - **a rewritten test is a signal** - either it pinned the implementation
+     (report it) or the step changed behavior (undo the step);
+   - **a security or correctness finding is not fixed in passing** - it is
+     a `fix:` step of its own, or a line in the report.
 6. **Report** - see the end of this file.
 
 ## Which decisions are yours
