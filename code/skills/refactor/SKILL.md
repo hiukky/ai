@@ -24,25 +24,15 @@ at the one thing that broke it.
 
 ## First, read the project
 
-Before planning anything, find out what this project already decided. Its
-docs win over this skill wherever they disagree.
+Before planning anything, read the project's rules, adopt its gate and run
+it once as the baseline - `$PLUGIN_ROOT/resources/project.md`. Its docs win
+over this skill wherever they disagree.
 
-- **The rules** - `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING`, the architecture
-  docs and decision records it points at. Layering rules, dependency
-  policy, naming conventions and "never do X" lists live there.
-- **The gate** - what actually blocks a merge. Read CI first (`.github/workflows`,
-  `.gitlab-ci.yml`, whatever exists), then the task runner it calls
-  (Makefile, justfile, `package.json` scripts, `pyproject`, `Cargo.toml`,
-  `go.mod`...). Write down the exact commands: build, tests, lint, type
-  check. That list *is* "green" for this run - say which one you adopted in
-  the report.
-- **The safety net** - what will tell you a step broke something. That is a
-  property of the language and of the code, and it decides how big a step
-  may be. See `references/safety-net.md`.
-
-A project with no runnable gate is not a reason to stop - it is the first
-task: build the net (characterization tests, see the reference) before the
-first structural edit.
+Then classify **the safety net** - what will tell you a step broke
+something. That is a property of the language and of the code, and it
+decides how big a step may be. See `references/safety-net.md`. A project
+with no runnable gate builds the net first (characterization tests, same
+reference) before the first structural edit.
 
 ## Two hats, never both
 

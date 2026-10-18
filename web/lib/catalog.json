@@ -274,7 +274,9 @@
         "lenses/performance.md",
         "lenses/quality.md",
         "lenses/security.md",
-        "lenses/tests.md"
+        "lenses/tests.md",
+        "project.md",
+        "review.md"
       ],
       "path": "code"
     }
