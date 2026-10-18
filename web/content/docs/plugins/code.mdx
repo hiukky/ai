@@ -1,29 +1,56 @@
 ---
 title: code
-description: Restructure code without changing what it does, in small verified steps, judged through the same four lenses every time
+description: Polish code before review and restructure it without changing what it does, in small verified steps, judged through the same six lenses by reviewers that did not write it
 icon: Hammer
 ---
 
 <PluginHeader name="code" />
 
-## Two promises
+## Which skill, when
 
-`refactor` changes structure and nothing else. A change that breaks either
-promise is not a refactoring, whatever its commit says:
+Two skills with opposite contracts:
+
+| Ask yourself | Use | It may change behavior |
+| --- | --- | --- |
+| "is this ready for someone else to read?" | `polish` | yes, with proof |
+| "I want this part to have a different shape" | `refactor` | never |
+
+A typical feature goes *implement → `polish` → open the request*. When
+`polish` finds something structural that is too big to fix in passing, it
+does not do it: it recommends a `refactor` in its report, and you decide
+whether that is now, in a separate request, or later.
+
+## polish
+
+Runs on the current branch against its base by default, or on the paths
+you name, or on the whole codebase when you ask for a sweep. It fixes what
+it confirms unless you ask it only to assess. Emphasis ("be picky", "mostly
+performance") and a subagent budget are arguments, not prompt boilerplate.
+
+1. Reads the project's rules and gate, and runs the gate once as the
+   baseline.
+2. Hands the code to **reviewers that did not write it** - fresh subagents
+   given the diff, the rules and the lenses, never the reasoning behind
+   the code.
+3. Judges each finding on evidence: confirmed, rejected (with the reason,
+   listed so you see what the author dismissed) or unproven.
+4. Fixes the confirmed ones, one per green commit: a bug with the test that
+   shows it first (`fix:`), padded tests replaced by real ones (`test:`),
+   local structure with `refactor`'s discipline (`refactor:`).
+5. Reviews its own fixes once more, with a fresh reviewer, and reports.
+
+## refactor
+
+Changes structure and nothing else. A change that breaks either promise is
+not a refactoring, whatever its commit says:
 
 1. **Behavior is preserved**, proved by the project's gate, not by reading
    the diff.
 2. **Every step can be undone**: one transformation, a green gate, one
    commit.
 
-Structure and behavior never change in the same step. A bug found on the
-way is recorded and fixed in a `fix:` commit of its own.
-
-## Your project decides what green means
-
-Before planning, the skill reads the project's own rules (`AGENTS.md`,
-architecture docs, decision records) and its CI, and adopts the exact
-commands that block a merge as the gate. Your rules win over the skill's.
+A bug found on the way is recorded and fixed in a `fix:` commit of its
+own.
 
 It works in any language because it asks what **safety net** the code has,
 not what language it is:
@@ -38,40 +65,57 @@ not what language it is:
 Where nothing pins the behavior, it writes characterization tests first,
 green against the old code.
 
-## Sized before started
+### Sized before started, and who runs it
 
-| Size | The plan lives |
-| --- | --- |
-| local | in the session |
-| spread | a Mikado graph in the git directory, never committed |
-| aggressive | an OpenSpec change, run unattended by `openspec`'s `auto` |
+| Size | The plan lives | Executed by |
+| --- | --- | --- |
+| local | in the session | the session |
+| spread | a Mikado graph in the git directory, never committed | a fresh subagent given only the plan |
+| aggressive | an OpenSpec change | `openspec`'s `auto` |
+
+Planning always stays with you, because it needs the conversation. The
+execution and the final review do not, and are better without it: every
+final diff goes to an independent reviewer.
 
 The Mikado method: try the goal, note what broke, revert, do the leaves
 first. The tree is green between any two steps.
 
-## Decisions it takes, and the ones it does not
+## Your project decides what green means
 
-Easy to undo (names, extractions, moves inside a module): decided and
-recorded. Hard to undo (a persisted format, a public interface, a new
-dependency, removed behavior, a moved trust boundary): decided while
-planning, or left for you with a recommendation. It stops on four
-conditions only, and finishing a step is not one of them.
+Before anything else, both skills read the project's own rules
+(`AGENTS.md`, architecture docs, decision records) and its CI, and adopt
+the exact commands that block a merge as the gate. Your rules win over the
+skills'.
 
-## Four lenses
+## Decisions they take, and the ones they do not
 
-Asked of every refactoring, once while planning and once on the final
-diff, so they never have to go into a prompt again:
+Easy to undo (names, extractions, moves inside a module, which of two fixes
+for a bug): decided and recorded. Hard to undo (a persisted format, a
+public interface, a new dependency, removed behavior, a moved trust
+boundary): decided by you, or left for you with a recommendation. Each
+skill stops on a short closed list of conditions, and finishing a step is
+not one of them.
 
-- **architecture**: dependency direction, boundaries, rules kept as tests
+## Six lenses
+
+Asked of every change, so they never have to go into a prompt again:
+
+- **correctness**: edges, error paths, races, leaks, every platform the
+  project supports - with a concrete scenario or it is not a finding
 - **security**: checks still before use, on every path; untrusted input;
   secrets
+- **architecture**: the project's own rules, dependency direction,
+  boundaries, rules kept as tests
 - **performance**: no number, no claim
-- **quality**: names, the smells worth acting on, tests that test behavior
+- **quality**: names, smells worth acting on, dead code, workarounds
+- **tests**: would this test fail if the code broke, or does it only pad
+  coverage?
 
 ## The report
 
-Same shape every time: why, the gate and its result, what changed, what
-was decided, what waits for you, what was found and left alone.
+Same shape every time, every section present even when it says `none`:
+the gate and its result, what changed, what was decided or rejected, what
+waits for you, what was found and left alone.
 
 ## Skills
 

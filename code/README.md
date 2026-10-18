@@ -1,28 +1,44 @@
 # code
 
-Working on code that already exists. Today that is one skill, `refactor`:
-change the structure without changing what the code does, in steps small
-enough that a red gate points at the one that broke it.
+Working on code that already exists. Two skills with opposite contracts,
+sharing the same questions:
 
-- `refactor` - read the project's own rules and gate, pin the behavior,
-  plan with the Mikado method, move in green steps, and report in the same
-  shape every time: what changed, what was decided, what is waiting for
-  you, what was found and left alone
+- `polish` - make code ready for review. A branch (by default), a module or
+  the whole codebase goes through the six lenses with reviewers that did
+  not write it; each finding is proved or rejected on evidence, and the
+  confirmed ones are fixed one per green commit. It may change behavior -
+  a bug found is a bug fixed, with the test that shows it. It can also
+  only assess, when asked not to change anything.
+- `refactor` - change the structure without changing what the code does,
+  in steps small enough that a red gate points at the one that broke it.
+  Planning stays with the person; a larger run is executed by a fresh
+  subagent given only the plan, and the final diff goes to an independent
+  reviewer.
 
-The four lenses in `resources/lenses/` (architecture, security,
-performance, quality) are the questions asked of every change, once while
-planning and once on the final diff. They live at the plugin level, not
-inside the skill, because they are not specific to refactoring.
+Use `polish` when the question is "is this ready for someone else to
+read?", and `refactor` when it is "I want this part to have a different
+shape". A large structural finding in `polish` becomes a recommendation to
+run `refactor`, never a change made in passing.
 
-Language-agnostic by rule: the skill classifies the safety net the code
-has (strict types, partial types, none, dispatch by name) instead of naming
-a language, and uses whatever the project and machine already have for
-mechanical edits.
+Shared resources, at plugin level because they belong to neither skill:
 
-Boundaries: behavior changes go in their own step, never in a refactoring
-one. A large refactoring is planned here and, when the `openspec` plugin is
-present, run unattended by its `auto` skill. Committing is the `git`
-plugin's `commit`.
+- `resources/lenses/` - correctness, security, architecture, performance,
+  quality and tests: the questions asked of every change, so they never
+  have to go into a prompt again;
+- `resources/project.md` - read the project's rules, adopt its gate, run
+  the baseline;
+- `resources/review.md` - who reviews, the brief they get without the
+  author's reasoning, and how findings are judged;
+- `resources/doors.md` - the decisions an agent takes alone and the
+  one-way ones it does not.
+
+Language-agnostic by rule: the project's own rules and gate decide what is
+wrong and what green means, and the skills use whatever the project and
+machine already have.
+
+Boundaries: committing is the `git` plugin's `commit`, opening the request
+is its `pr`. A large refactoring is planned here and, when the `openspec`
+plugin is present, run unattended by its `auto` skill.
 
 ```bash
 uze install code@ai -m   # machine-wide
