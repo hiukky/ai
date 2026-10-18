@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Change the structure of existing code without changing its behavior - from a rename across a module to a boundary moved across a codebase - in small verified steps, with every decision the plan did not make recorded for review. Use when someone asks to refactor, restructure, extract, split, untangle, decouple or migrate a module or an interface, to pay down technical debt, or says "refatora isso", "reorganiza esse módulo", "quebra esse arquivo", "limpa essa parte". Language-agnostic - the project's own gates and docs decide what green means. Not for adding or changing behavior (that goes in its own step, before or after, never in the same one), not for reviewing code without changing it, not for working an existing OpenSpec task list (that is the `openspec` plugin's `auto`), and not for committing the result (that is the `git` plugin's `commit`).
+description: Change the structure of existing code without changing its behavior - from a rename across a module to a boundary moved across a codebase - in small verified steps, with every decision the plan did not make recorded for review. Use when someone asks to refactor, restructure, extract, split, untangle, decouple or migrate a module or an interface, to pay down technical debt, or says "refatora isso", "reorganiza esse módulo", "quebra esse arquivo". Language-agnostic - the project's own gates and docs decide what green means. Not for adding or changing behavior (that goes in its own step, before or after, never in the same one), not for a quality pass over a branch or an implementation before review (that is `polish`), not for working an existing OpenSpec task list (that is the `openspec` plugin's `auto`), and not for committing the result (that is the `git` plugin's `commit`).
 compatibility: >-
   A git repository, any language. Uses a language server, ast-grep or comby
   for mechanical changes when one is present, and falls back to search and
@@ -81,9 +81,10 @@ cheap; discovering at step 30 that nothing was written down is not.
    `references/mechanical-change.md`. Any change to an interface, a schema
    or a format goes expand → migrate → contract, each phase green on its
    own.
-5. **Look through the lenses** - once while planning, once on the final
-   diff. They are the questions to ask every time, so nobody has to type
-   them into a prompt again:
+5. **Look through the lenses** - once while planning, yourself, and once on
+   the final diff, by an independent reviewer (see *Who runs which phase*).
+   They are the questions to ask every time, so nobody has to type them
+   into a prompt again:
    - `$PLUGIN_ROOT/resources/lenses/architecture.md`
    - `$PLUGIN_ROOT/resources/lenses/security.md`
    - `$PLUGIN_ROOT/resources/lenses/performance.md`
@@ -103,6 +104,51 @@ cheap; discovering at step 30 that nothing was written down is not.
    - **a security or correctness finding is not fixed in passing** - it is
      a `fix:` step of its own, or a line in the report.
 6. **Report** - see the end of this file.
+
+## Who runs which phase
+
+The session that planned a refactoring carries everything the conversation
+said about it - and every reason to believe its own plan. The plan needs
+that conversation; the execution and the final review are better without
+it.
+
+| Phase | Runs in | Given |
+| --- | --- | --- |
+| Map, protect, plan, one-way doors | this session, with the person | the conversation |
+| Execute (spread) | a fresh subagent | the brief below - the plan, never the conversation |
+| Execute (aggressive) | `openspec`'s `auto`, when present | the change |
+| Final lenses | fresh reviewers, `$PLUGIN_ROOT/resources/review.md` | the run's diff, the rules, the `## Why` |
+| Report | this session | what the executor and the reviewers returned |
+
+A **local** refactoring runs whole in this session - handing it off costs
+more than it saves - but its final diff still goes to one independent
+reviewer. Where the harness cannot start subagents, every phase runs here
+and the report says "review not independent".
+
+The executor works in the same checkout, alone: while it runs, this
+session does not edit. Give it exactly this, filled in:
+
+```markdown
+You are executing a planned refactoring. The plan is complete; do not
+re-plan it, and do not widen it.
+
+Read first: $PLUGIN_ROOT/skills/refactor/SKILL.md (the method, the stop
+list, the report), then the graph.
+Graph: <$(git rev-parse --git-dir)/refactor/<topic>.md>
+Why: <what becomes easy once this is done>
+Gate: <the exact commands, and their baseline result>
+Safety net: <the classification, and the tests that pin the target>
+One-way doors, decided: <each, with the decision - or "none">
+
+Work the first unchecked leaf, one transformation per green commit, until
+the root is checked or a condition from the stop list holds. Return the
+report in the skill's shape.
+```
+
+When it returns, read the graph and `git log` yourself and run the gate -
+the executor's report is a claim, the gate is the proof. Then the final
+review; a confirmed finding that is structure inside the plan's scope is
+one more step, anything else goes in the report.
 
 ## Which decisions are yours
 
