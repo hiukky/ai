@@ -32,6 +32,15 @@ Shared resources, at plugin level because they belong to neither skill:
 - `resources/doors.md` - the decisions an agent takes alone and the
   one-way ones it does not.
 
+Two agents, started by the skills with a brief and never with the
+conversation: `agents/reviewer.md` (judges code it did not write, edits
+nothing) and `agents/refactor-executor.md` (works a planned Mikado graph,
+starts no subagents). Where a harness did not install them, the skills
+hand the same file to a general-purpose subagent instead.
+
+`$PLUGIN_ROOT` in the skills is the installed plugin's directory; it is
+resolved to an absolute path before anything is handed to a subagent.
+
 Language-agnostic by rule: the project's own rules and gate decide what is
 wrong and what green means, and the skills use whatever the project and
 machine already have.

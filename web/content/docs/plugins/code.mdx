@@ -29,9 +29,9 @@ performance") and a subagent budget are arguments, not prompt boilerplate.
 
 1. Reads the project's rules and gate, and runs the gate once as the
    baseline.
-2. Hands the code to **reviewers that did not write it** - fresh subagents
-   given the diff, the rules and the lenses, never the reasoning behind
-   the code.
+2. Hands the code to **reviewers that did not write it** - the plugin's
+   `reviewer` agent, given the diff, the rules and the lenses, never the
+   reasoning behind the code.
 3. Judges each finding on evidence: confirmed, rejected (with the reason,
    listed so you see what the author dismissed) or unproven.
 4. Fixes the confirmed ones, one per green commit: a bug with the test that
@@ -70,7 +70,7 @@ green against the old code.
 | Size | The plan lives | Executed by |
 | --- | --- | --- |
 | local | in the session | the session |
-| spread | a Mikado graph in the git directory, never committed | a fresh subagent given only the plan |
+| spread | a Mikado graph in the git directory, never committed | the plugin's `refactor-executor` agent, given only the plan |
 | aggressive | an OpenSpec change | `openspec`'s `auto` |
 
 Planning always stays with you, because it needs the conversation. The

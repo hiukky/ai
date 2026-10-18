@@ -22,4 +22,6 @@ decided. Its docs win over any skill in this plugin wherever they disagree.
   it against your own steps.
 
 A project with no runnable gate is not a reason to stop. The first task is
-building one: the tests that pin the behavior you are about to touch.
+building one: the tests that pin the behavior you are about to touch. When
+the run may not edit (an assessment only), it reports "no gate" and what
+building one would take instead.

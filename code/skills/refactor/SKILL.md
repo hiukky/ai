@@ -81,8 +81,9 @@ cheap; discovering at step 30 that nothing was written down is not.
    `references/mechanical-change.md`. Any change to an interface, a schema
    or a format goes expand → migrate → contract, each phase green on its
    own.
-5. **Look through the lenses** - once while planning, yourself, and once on
-   the final diff, by an independent reviewer (see *Who runs which phase*).
+5. **Look through the lenses** - once while planning (alongside step 3),
+   yourself, and once on the final diff, by an independent reviewer (see
+   *Who runs which phase*).
    They are the questions to ask every time, so nobody has to type them
    into a prompt again:
    - `$PLUGIN_ROOT/resources/lenses/architecture.md`
@@ -117,7 +118,7 @@ it.
 | Map, protect, plan, one-way doors | this session, with the person | the conversation |
 | Execute (spread) | a fresh subagent | the brief below - the plan, never the conversation |
 | Execute (aggressive) | `openspec`'s `auto`, when present | the change |
-| Final lenses | fresh reviewers, `$PLUGIN_ROOT/resources/review.md` | the run's diff, the rules, the `## Why` |
+| Final lenses | the plugin's `reviewer` agent, `$PLUGIN_ROOT/resources/review.md` | the brief: the run's diff, the rules, `Claim: behavior preserved` |
 | Report | this session | what the executor and the reviewers returned |
 
 A **local** refactoring runs whole in this session - handing it off costs
@@ -125,24 +126,20 @@ more than it saves - but its final diff still goes to one independent
 reviewer. Where the harness cannot start subagents, every phase runs here
 and the report says "review not independent".
 
-The executor works in the same checkout, alone: while it runs, this
-session does not edit. Give it exactly this, filled in:
+The executor is the `refactor-executor` agent this plugin ships
+(`$PLUGIN_ROOT/agents/refactor-executor.md`); where the harness did not
+install it, a fresh general-purpose subagent handed that file's body
+followed by the brief. It works in the same checkout, alone: while it
+runs, this session does not edit. Resolve `$PLUGIN_ROOT` and every other
+placeholder to absolute paths, and hand it exactly this, filled in:
 
 ```markdown
-You are executing a planned refactoring. The plan is complete; do not
-re-plan it, and do not widen it.
-
-Read first: $PLUGIN_ROOT/skills/refactor/SKILL.md (the method, the stop
-list, the report), then the graph.
-Graph: <$(git rev-parse --git-dir)/refactor/<topic>.md>
+Method: <absolute path of this SKILL.md>
+Graph: <absolute path of $(git rev-parse --git-dir)/refactor/<topic>.md>
 Why: <what becomes easy once this is done>
 Gate: <the exact commands, and their baseline result>
 Safety net: <the classification, and the tests that pin the target>
 One-way doors, decided: <each, with the decision - or "none">
-
-Work the first unchecked leaf, one transformation per green commit, until
-the root is checked or a condition from the stop list holds. Return the
-report in the skill's shape.
 ```
 
 When it returns, read the graph and `git log` yourself and run the gate -
@@ -210,6 +207,7 @@ back to it:
 
 **Why**: <what becomes easy now>
 **Gate**: <the exact commands adopted> - <green | red, with output>
+**Review**: <reviewers and their lenses | not independent, and why>
 
 ### Changed
 - <one line per step, with its sha>

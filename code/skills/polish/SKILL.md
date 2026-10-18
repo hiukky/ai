@@ -1,6 +1,6 @@
 ---
 name: polish
-description: Make code ready for review - put a branch, a module or a whole codebase through six lenses (correctness, security, architecture, performance, quality, tests) with reviewers that did not write it, prove each finding, and fix the confirmed ones in small verified steps. Use before opening a merge or pull request, after finishing an implementation, when asked to review an implementation and fix what turns up, or to hunt hidden bugs, dead code, workarounds, performance or security problems and tests that only pad coverage - "analisa a implementação", "revisa essa branch", "vê se tem gambiarra", "pente fino", "limpa essa parte", "seja chato". Also assesses without changing anything, when asked to. The project's own rules and gate decide what is wrong and what green means. Not for a deliberate restructuring with a goal of its own (that is `refactor`), not for writing the feature, and not for committing or opening the request (the `git` plugin's `commit` and `pr`).
+description: Make code ready for review - put a branch, a module or a whole codebase through six lenses (correctness, security, architecture, performance, quality, tests) with reviewers that did not write it, prove each finding, and fix the confirmed ones in small verified steps. Use before opening a merge or pull request, after finishing an implementation, when asked to review an implementation and fix what turns up, or to hunt hidden bugs, dead code, workarounds, performance or security problems and tests that only pad coverage - "analisa a implementação", "revisa essa branch", "vê se tem gambiarra", "revisa esse PR", "pente fino", "limpa essa parte", "seja chato". Also assesses without changing anything, when asked to. The project's own rules and gate decide what is wrong and what green means. Not for a deliberate restructuring with a goal of its own (that is `refactor`), not for writing the feature, and not for committing or opening the request (the `git` plugin's `commit` and `pr`).
 compatibility: >-
   A git repository, any language. Runs its reviewers as subagents where the
   harness can start them, and in the same session, saying so, where it
@@ -27,16 +27,24 @@ this skill judges what they found on evidence.
 Read them from the request before anything else:
 
 - **Scope.** Default: the current branch against its base - the diff from
-  `git merge-base HEAD <default branch>` (find the default branch from the
-  remote's HEAD, not by assuming its name) to the working tree, uncommitted
-  work included. Otherwise the paths named, or the whole codebase when the
-  person asks for a sweep ("pente fino", "o projeto todo").
-- **Mode.** Default: **apply** - fix what is confirmed. **Assess** when the
-  person asks only for a review or an opinion ("só avalia", "não mexe",
-  "o que você acha"): everything up to judging, then the report, no edits.
+  `git merge-base HEAD <base>` to the working tree, uncommitted work
+  included. The base is the branch the person names, else the remote's
+  default branch (its `HEAD`, not an assumed name); with neither, ask.
+  Otherwise the paths named, or the whole codebase when the person asks
+  for a sweep ("pente fino", "o projeto todo").
+- **Mode.** Default: **apply** - fix what is confirmed. A bare request to
+  review ("revisa", "analisa", "review this") is apply too: that is what
+  this skill is for. **Assess** only when the person says not to change
+  anything or asks for an opinion ("só avalia", "não mexe", "o que você
+  acha"): everything up to judging, then the report, no edits.
+- **Clean tree, in apply mode.** Fixes are committed one by one, so
+  uncommitted work that this run did not make cannot stay in the tree:
+  it would be swept into the first commit. Before the first edit, ask the
+  person once: commit it first, as its own commit, or set it aside - never
+  stash, reset or commit it without that answer. The review itself may still read it.
 - **Emphasis and budget.** "Be picky", "mostly performance", "focus on the
   tests", "up to three subagents", a model to use - each changes the review
-  below, never the promises above.
+  (see the budget rules in `review.md`), never the promises above.
 
 On a branch, a finding in code the branch did not touch is in scope only
 if the branch makes it worse or depends on it. The rest goes in the
@@ -47,7 +55,8 @@ report as found, out of scope.
 1. **Read the project** - rules, gate, baseline:
    `$PLUGIN_ROOT/resources/project.md`.
 2. **Review independently** - `$PLUGIN_ROOT/resources/review.md`: who
-   reviews, the brief they get, the findings they return. The lenses are
+   reviews, the brief they get (`Claim: behavior may change`), the findings
+   they return. The lenses are
    in `$PLUGIN_ROOT/resources/lenses/`.
 3. **Judge** every finding as confirmed, rejected or unproven, on evidence
    (same file). In **assess** mode, go to the report.
@@ -57,10 +66,15 @@ report as found, out of scope.
    | --- | --- |
    | behavior: a bug, a hole, a leak, a wrong result | a test that fails, then the fix that makes it pass - one `fix:` commit |
    | weak or missing tests | the real test, replacing the padding - one `test:` commit |
-   | structure, local: a name, an extraction, dead code, a workaround with a cause you can fix in one module | one step with `refactor`'s discipline - `refactor:` commit, behavior untouched |
+   | structure, local: a name, an extraction, dead code nothing outside the repository reaches, a workaround with a cause you can fix in one module | one step of a local refactoring (`$PLUGIN_ROOT/skills/refactor/SKILL.md`, *Execute in steps*) - `refactor:` commit, behavior untouched |
    | structure, larger: crosses modules or a boundary, or needs a plan | not done here - a recommendation in the report to run `refactor` on it |
    | a one-way door | not taken - pending, with your recommendation (`$PLUGIN_ROOT/resources/doors.md`) |
    | measured performance problem | a fix with the before and after numbers in the commit body - `perf:` commit |
+
+   The reviewer's `kind` gives the row: `behavior` the first, `tests` the
+   second, `structure` the third or fourth by size, `performance` the last
+   once measured (unmeasured, it is reported as suspected). Any row may
+   turn out to be a one-way door; then that row wins.
 
    Order the work so a fix never lands on top of code that is about to
    move: behavior fixes first, then tests, then structure.
@@ -68,7 +82,8 @@ report as found, out of scope.
    plugin's `commit` (or the project's own convention). A step that goes
    red is fixed or reverted before the next one starts; three failed
    attempts at the same finding, and it moves to the report as pending
-   with what was tried.
+   with what was tried - this rule, not `refactor`'s stop, governs the
+   structural steps too.
 6. **Review the fixes** - once, with a fresh reviewer, on the diff of this
    run's own commits only, with the same brief. A finding there is judged
    and fixed like any other; there is no third round - what is left goes
@@ -85,6 +100,8 @@ Stop and hand back **only** when:
 2. A destructive action outside the scope is needed - deleting what the
    scope never named, rewriting pushed history.
 3. A credential is needed, or a secret turns up in the working tree.
+4. Apply mode, and the tree holds uncommitted work this run did not make
+   - ask the person to commit it or set it aside (see *Clean tree*).
 
 Not reasons to stop: a finding that failed three times (it goes to the
 report), a one-way door (pending), a large structural finding (a
@@ -116,7 +133,7 @@ final <green | red, with output>
 - <the structural finding> - <what `refactor` should make easy>
 
 ### Found, out of scope
-- <finding> - <where>
+- <finding, including confirmed `taste`> - <where>
 
 ### Stopped because   (only if it did)
 - <condition from the closed list> - <evidence>
